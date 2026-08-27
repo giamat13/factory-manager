@@ -5,55 +5,83 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Factory Manager — מפעל רחפנים</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+:root{
+ --bg:#eef1f6; --ink:#101826; --muted:#6b7688; --line:#dde2ea;
+ --panel:#fff; --panel-2:#f7f9fc;
+ --accent:#0f6e8c; --accent-ink:#083b4a; --accent-soft:#e2f2f6;
+ --amber:#b9770e; --amber-soft:#fdf1dd;
+ --green:#127a4d; --green-soft:#e1f5e9;
+ --red:#b8342f; --red-soft:#fbe4e2;
+ --radius:14px; --radius-sm:9px;
+ --shadow:0 1px 2px #10182608, 0 8px 22px -12px #10182626;
+}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;background:#e9edf2;color:#18212b;font-family:Arial,Helvetica,sans-serif}
-.top{background:#1d2835;color:#fff;padding:18px 24px;box-shadow:0 2px 8px #0002}
-.topin{max-width:1350px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:15px}
-h1{margin:0;font-size:27px}.muted{color:#8190a0;font-size:13px}
-.top .muted{color:#bac6d2}
-.wrap{max-width:1350px;margin:18px auto;padding:0 15px}
-.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:15px}
-.kpi{background:#fff;border:1px solid #d8dee6;border-radius:10px;padding:12px}
-.kpi .label{font-size:12px;color:#6d7986}.kpi .val{font-size:21px;font-weight:700;margin-top:5px}
-.layout{display:grid;grid-template-columns:1.55fr .95fr;gap:15px}
-.panel{background:#fff;border:1px solid #d8dee6;border-radius:12px;padding:16px;margin-bottom:15px}
-.panel h2{font-size:18px;margin:0 0 12px}
+body{margin:0;background:
+  radial-gradient(1100px 420px at 12% -10%, #dbe9ee 0%, transparent 60%),
+  var(--bg);
+ color:var(--ink);font-family:'Rubik',system-ui,-apple-system,'Segoe UI',sans-serif;
+ -webkit-font-smoothing:antialiased}
+b,.val,.mono{font-variant-numeric:tabular-nums}
+.top{background:linear-gradient(155deg,#0c1826,#122334 55%,#0e2a33);color:#fff;padding:20px 26px;box-shadow:0 4px 22px -8px #0009;position:relative;overflow:hidden}
+.top::after{content:'';position:absolute;inset:0;background:radial-gradient(600px 200px at 85% 0%,#1c8fa62c,transparent 70%);pointer-events:none}
+.topin{max-width:1350px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:15px;position:relative}
+h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.3px}.muted{color:#7c8798;font-size:13px}
+.top .muted{color:#9fb4c2}
+.wrap{max-width:1350px;margin:20px auto;padding:0 16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 14px;box-shadow:var(--shadow);position:relative}
+.kpi::before{content:'';position:absolute;inset-inline-start:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--accent);opacity:.55}
+.kpi .label{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.2px}
+.kpi .val{font-size:21px;font-weight:700;margin-top:5px;font-family:'JetBrains Mono',monospace}
+.layout{display:grid;grid-template-columns:1.55fr .95fr;gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.panel h2{font-size:16.5px;margin:0 0 13px;font-weight:700;display:flex;align-items:center;gap:8px;letter-spacing:-.1px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.card{border:1px solid #dbe1e8;border-radius:10px;padding:12px;background:#fbfcfd}
-.card h3{font-size:15px;margin:0 0 7px}
-.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f3}
+.card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px;background:var(--panel-2);transition:border-color .15s}
+.card:hover{border-color:#c3cbd8}
+.card h3{font-size:14px;margin:0 0 6px;font-weight:700}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #eef1f5}
 .row:last-child{border-bottom:0}
 button,select{font:inherit}
-button{border:0;border-radius:7px;background:#246bce;color:#fff;padding:9px 12px;font-weight:700;cursor:pointer}
-button:hover{filter:brightness(1.05)}button:disabled{opacity:.45;cursor:not-allowed}
-.secondary{background:#e9eef5;color:#26384d}.green{background:#1b8e55}.red{background:#c83d3d}.amber{background:#d88a18}
-input,select{border:1px solid #cbd4de;border-radius:7px;padding:8px;background:#fff}
-.pbar{height:9px;background:#e7ebef;border-radius:99px;overflow:hidden;margin:7px 0}
-.fill{height:100%;background:#246bce}.fill.green{background:#1b8e55}.fill.red{background:#c83d3d}.fill.amber{background:#d88a18}
+button{border:0;border-radius:8px;background:linear-gradient(180deg,#127a99,var(--accent));color:#fff;padding:9px 14px;font-weight:700;font-size:13.5px;cursor:pointer;box-shadow:0 1px 0 #ffffff26 inset,0 3px 8px -3px #0f6e8c66;transition:filter .12s,transform .05s}
+button:hover{filter:brightness(1.08)}button:active{transform:translateY(1px)}
+button:disabled{opacity:.42;cursor:not-allowed;box-shadow:none;filter:none}
+.secondary{background:var(--panel-2);color:var(--accent-ink);border:1px solid var(--line);box-shadow:none}
+.green{background:linear-gradient(180deg,#189462,var(--green))}.red{background:linear-gradient(180deg,#cf433d,var(--red))}.amber{background:linear-gradient(180deg,#d68b1e,var(--amber))}
+input,select{border:1px solid #cbd2dd;border-radius:8px;padding:8px 10px;background:#fff;font-family:'JetBrains Mono',monospace;font-size:13px}
+input:focus,select:focus{outline:2px solid #0f6e8c55;border-color:var(--accent)}
+.pbar{height:8px;background:#e7ebf1;border-radius:99px;overflow:hidden;margin:8px 0}
+.fill{height:100%;background:var(--accent);transition:width .3s}.fill.green{background:var(--green)}.fill.red{background:var(--red)}.fill.amber{background:var(--amber)}
 .machine{display:grid;grid-template-columns:1.15fr .85fr;gap:10px}
-.machine .box{border:1px solid #dbe1e8;border-radius:10px;padding:12px}
-.badge{display:inline-block;padding:3px 7px;border-radius:12px;font-size:11px;background:#e9eef5;margin-right:4px}
-.badge.ok{background:#dff3e8;color:#14663c}.badge.warn{background:#fff0d2;color:#7c5409}.badge.bad{background:#f9dfdf;color:#8f2525}
+.machine .box{border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;background:var(--panel-2)}
+.badge{display:inline-block;padding:4px 9px;border-radius:99px;font-size:11px;font-weight:700;background:#e9eef5;margin-inline-end:5px;letter-spacing:.1px}
+.badge.ok{background:var(--green-soft);color:var(--green)}.badge.warn{background:var(--amber-soft);color:var(--amber)}.badge.bad{background:var(--red-soft);color:var(--red)}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7682}
-.log{height:250px;overflow:auto;background:#f7f9fb;border:1px solid #dbe1e8;border-radius:8px;padding:9px}
-.log p{margin:0;padding:7px 3px;border-bottom:1px solid #e8edf2;font-size:12px}
+th,td{text-align:right;padding:9px 8px;border-bottom:1px solid #eef1f5}
+th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px}
+tr:hover td{background:#fafbfd}
+.log{height:250px;overflow:auto;background:#0e1b26;border:1px solid #1c2e3a;border-radius:var(--radius-sm);padding:10px}
+.log p{margin:0;padding:7px 8px;border-bottom:1px solid #ffffff0f;font-size:12px;color:#c9d8e0;font-family:'JetBrains Mono',monospace;line-height:1.5}
+.log p:first-child{color:#fff;background:#ffffff08;border-radius:6px}
 .controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.notice{background:#eef5ff;border:1px solid #cfe1fb;padding:10px;border-radius:8px;font-size:13px;margin-bottom:10px}
+.notice{background:var(--accent-soft);border:1px solid #bfe0e8;color:var(--accent-ink);padding:11px 13px;border-radius:var(--radius-sm);font-size:13px;margin-bottom:11px;line-height:1.5}
 .finance{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.metric{background:#f7f9fb;border:1px solid #e2e7ec;border-radius:8px;padding:10px}
-.good{color:#167242}.badtext{color:#b12e2e}
+.metric{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:11px}
+.metric .muted{display:block;margin-bottom:3px}
+.metric b{font-family:'JetBrains Mono',monospace;font-size:15px}
+.good{color:var(--green)}.badtext{color:var(--red)}
 /* tutorial */
-.taskbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff7e6;border:1px solid #f0d9a8;border-radius:10px;padding:11px 14px;margin-bottom:15px;font-size:14px}
+.taskbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:linear-gradient(90deg,#fff7e6,#fff2d6);border:1px solid #f0d9a8;border-radius:var(--radius-sm);padding:12px 15px;margin-bottom:16px;font-size:14px;box-shadow:var(--shadow)}
 .taskbar b{font-size:15px}
-.taskbar .step{color:#8a6a1e;font-size:12px}
-.modal{position:fixed;inset:0;background:#0b131cc9;display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
-.modalbox{background:#fff;border-radius:14px;padding:22px;max-width:460px;width:100%;box-shadow:0 18px 50px #0005}
-.modalbox .step{color:#6d7986;font-size:12px;letter-spacing:.5px}
-.modalbox h2{margin:6px 0 10px;font-size:22px}
-.modalbox p{margin:0 0 14px;font-size:14px;line-height:1.65;color:#3a4653}
-.task{background:#eef5ff;border:1px solid #cfe1fb;border-radius:8px;padding:10px;font-size:14px;font-weight:700;margin-bottom:16px}
+.taskbar .step{color:#8a6a1e;font-size:11.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.modal{position:fixed;inset:0;background:#0a1420cc;backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modalbox{background:#fff;border-radius:18px;padding:26px;max-width:460px;width:100%;box-shadow:0 24px 60px -10px #000a,0 0 0 1px #ffffff10}
+.modalbox .step{color:var(--accent);font-size:11.5px;letter-spacing:.6px;font-weight:800;text-transform:uppercase}
+.modalbox h2{margin:8px 0 11px;font-size:23px;font-weight:800;letter-spacing:-.3px}
+.modalbox p{margin:0 0 15px;font-size:14px;line-height:1.7;color:#3a4653}
+.task{background:var(--accent-soft);border:1px solid #bfe0e8;color:var(--accent-ink);border-radius:var(--radius-sm);padding:11px 13px;font-size:14px;font-weight:700;margin-bottom:17px}
 @media(max-width:1050px){.layout{grid-template-columns:1fr}}
 @media(max-width:650px){.grid3,.machine{grid-template-columns:1fr}}
 </style>
@@ -63,10 +91,11 @@ th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7
  <div class="topin">
   <div><h1>🛸 Factory Manager</h1><div class="muted">מפעל להרכבת רחפני צילום</div></div>
   <div class="controls">
+   <select id="slotSel" onchange="switchSlot(+this.value)" title="שלושה משחקים נפרדים, כל אחד עם ההתקדמות שלו"></select>
    <button class="secondary" onclick="pauseGame()" id="pauseBtn">השהה</button>
-   <button class="secondary" onclick="newDay()">דלג יום</button>
+   <button class="secondary" onclick="skipDay()">דלג יום</button>
    <button class="secondary" onclick="skipTutorial()" id="skipBtn">דלג על ההדרכה</button>
-   <button class="secondary" onclick="resetGame()">משחק חדש</button>
+   <button class="secondary" onclick="resetGame()">אפס משחק</button>
   </div>
  </div>
 </div>
@@ -79,11 +108,12 @@ th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7
 
  <div class="kpis">
   <div class="kpi"><div class="label">מזומן</div><div class="val" id="cash">₪50,000</div></div>
-  <div class="kpi"><div class="label">יום במשחק</div><div class="val" id="day">1</div></div>
+  <div class="kpi" style="grid-column:span 2"><div class="label">שעון המפעל</div><div class="val" id="clock" style="font-size:15px;white-space:nowrap">יום 1 · 08:00 · משמרת</div></div>
   <div class="kpi" data-req="sales"><div class="label">הכנסות החודש</div><div class="val" id="revenue">₪0</div></div>
   <div class="kpi" data-req="expenses"><div class="label">הוצאות החודש</div><div class="val" id="expenses">₪0</div></div>
   <div class="kpi" data-req="expenses"><div class="label">רווח החודש</div><div class="val" id="profit">₪0</div></div>
   <div class="kpi" data-req="breakdowns"><div class="label">יעילות</div><div class="val" id="eff">100%</div></div>
+  <div class="kpi" data-req="reputation"><div class="label">מוניטין</div><div class="val" id="rep">55</div></div>
  </div>
 
  <div class="layout">
@@ -96,14 +126,14 @@ th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7
        <h3>קו הרכבה וכיול</h3>
        <div class="muted">חיתוך שלדת פחמן, הלחמה ובדיקת טיסה</div>
        <p><span class="badge ok" id="machineStatus">כבוי</span><span class="badge" id="condition" data-req="breakdowns">מצב 100%</span></p>
-       <div class="row"><span>תפוקה</span><b id="capacityLine">15 רחפנים ליום</b></div>
+       <div class="row"><span>תפוקה</span><b id="capacityLine">12 רחפנים ליום</b></div>
        <div class="row" data-req="expansion"><span>קווי הרכבה</span><b id="machines">1</b></div>
        <div class="row" data-req="workers"><span>טכנאים נדרשים</span><b id="needWorkers">3</b></div>
        <div class="row" data-req="expenses"><span>חשמל</span><b id="elecLine">₪260 ליום עבודה</b></div>
        <div class="row" data-req="expenses"><span>תחזוקה חודשית</span><b id="maintLine">₪3,600</b></div>
        <div class="controls" style="margin-top:10px">
         <button onclick="toggleProduction()" id="prodBtn">הפעל ייצור</button>
-        <button class="secondary" onclick="maintain()" data-req="breakdowns">כיול ותחזוקה — ₪1,100</button>
+        <button class="secondary" onclick="maintain()" data-req="breakdowns" id="maintBtn">כיול ותחזוקה — ₪1,100</button>
        </div>
       </div>
       <div class="box">
@@ -153,6 +183,10 @@ th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7
 
    <div class="panel" data-req="orders">
     <h2>🛒 הזמנות לקוחות</h2>
+    <div class="row" data-req="workers">
+     <div><b>מנהל משלוחים</b><div class="muted">עובד קבוע שמשלח אוטומטית כל הזמנה שהמלאי מספיק לה, ברגע שהיא מוכנה — ₪250 ליום</div></div>
+     <button id="dispatchBtn" onclick="toggleDispatcher()">העסק — ₪250/יום</button>
+    </div>
     <div class="notice">במלאי כרגע: <b id="stockHint">0</b> רחפנים מוכנים. שולחים הזמנה רק כשכל הכמות נמצאת במלאי, אין משלוחים חלקיים, ולכן הכפתור מראה כמה רחפנים עוד חסרים.</div>
     <table><thead><tr><th>לקוח</th><th>רחפנים</th><th>מחיר ליח׳</th><th>סה״כ</th><th>דדליין</th><th></th></tr></thead>
     <tbody id="orders"></tbody></table>
@@ -161,7 +195,7 @@ th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7
 
    <div class="panel" data-req="expansion">
     <h2>🏗️ התרחבות</h2>
-    <div class="row"><div><b>קו הרכבה נוסף</b><div class="muted">+15 רחפנים ליום, דורש 3 טכנאים נוספים</div></div><button onclick="buyMachine()">קנה — ₪45,000</button></div>
+    <div class="row"><div><b>קו הרכבה נוסף</b><div class="muted">+12 רחפנים ליום, דורש 3 טכנאים נוספים</div></div><button onclick="buyMachine()">קנה — ₪45,000</button></div>
     <div class="row"><div><b>הרחבת מחסן</b><div class="muted">+200 יחידות נפח אחסון</div></div><button onclick="buyWarehouse()">הרחב — ₪12,000</button></div>
     <div class="row"><span>הובלה מבוטחת ללקוח</span><b>₪25 לרחפן</b></div>
    </div>
@@ -198,6 +232,19 @@ th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7
     <div class="muted">מחירי הרכיבים מושפעים מהיבוא. הזמנות ישירות נותנות מחיר קבוע.</div>
    </div>
 
+   <div class="panel" data-req="marketing">
+    <h2>📣 שיווק</h2>
+    <div class="row"><span>תקציב פרסום יומי</span><b id="adCost">₪0</b></div>
+    <div class="row"><span>הזמנות שנכנסו</span><b id="ordersWon">0</b></div>
+    <div class="controls" style="margin-top:10px">
+     <button class="secondary" onclick="setAd(0)" id="ad0">כבוי</button>
+     <button class="secondary" onclick="setAd(1)" id="ad1">מקומי ₪400</button>
+     <button class="secondary" onclick="setAd(2)" id="ad2">ארצי ₪1,200</button>
+     <button class="secondary" onclick="setAd(3)" id="ad3">קמפיין ₪3,000</button>
+    </div>
+    <div class="muted" style="margin-top:8px">פרסום מביא יותר פניות. מוניטין קובע כמה גדולות הן ובאיזה מחיר.</div>
+   </div>
+
    <div class="panel">
     <h2>⚠️ אירועים</h2>
     <div class="log" id="log"></div>
@@ -218,19 +265,22 @@ th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7
 
 <script>
 // ── המוצר: רחפן צילום דגם H2. כל רחפן = ערכת מנועים אחת + סוללה/בקר אחד. ──
-const BATTERY_PRICE=480, PER_CYCLE=2, SHIP_PER_UNIT=25, WAGE=480, PER_LINE=3;
+const BATTERY_PRICE=480, PER_CYCLE=1, SHIP_PER_UNIT=25, WAGE=480, PER_LINE=3, WORK_HOURS=12; // משמרת 08:00–20:00
 
-let game={
- day:1, paused:false, cash:50000, monthRevenue:0, monthExpenses:0, dayRevenue:0, dayExpenses:0,
+const freshGame=()=>({
+ day:1, hour:8, paused:false, cash:50000, monthRevenue:0, monthExpenses:0, dayRevenue:0, dayExpenses:0,
  motors:0, batteries:0, capacity:300, finished:0, progress:0, workers:0, lines:1, condition:100,
  quality:92, production:false, produced:0, shipped:0, motorsBought:0, repairs:0, debt:0,
- demand:2, marketPrice:1100, motorPrice:300, stage:1, tutOpen:false
-};
-let orders=[], nextId=1;
+ demand:2, marketPrice:1100, motorPrice:300, stage:1, tutOpen:false,
+ rep:55, adLevel:0, ordersWon:0, logs:[], dispatcher:false
+});
+const DISPATCHER_WAGE=250;
+let game=freshGame(), orders=[], nextId=1;
+const AD=[{cost:0,name:'כבוי'},{cost:400,name:'מקומי'},{cost:1200,name:'ארצי'},{cost:3000,name:'קמפיין דיגיטלי'}];
 
 // ── שלבי ההדרכה ──────────────────────────────────────────────
 // כל פיצ'ר נפתח בשלב שלו; has() שולט גם ב-UI (data-req) וגם בסימולציה.
-const UNLOCK={sales:2,orders:2,market:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,events:10};
+const UNLOCK={sales:2,orders:2,market:2,reputation:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,marketing:9,events:10};
 const has=f=>game.stage>=UNLOCK[f];
 
 const STAGES=[null,
@@ -239,7 +289,7 @@ const STAGES=[null,
   task:'הרכב 10 רחפנים', prog:()=>game.produced+'/10', done:()=>game.produced>=10},
 
  {t:'הלקוח הראשון',
-  b:'נפתחו הזמנות לקוחות. לכל הזמנה יש כמות, מחיר לרחפן ודדליין, היום האחרון שאפשר לשלוח בו. חשוב: שולחים רק כשכל הכמות נמצאת במלאי, ואחרי הדדליין ההזמנה מתבטלת בקנס.',
+  b:'נפתחו הזמנות לקוחות. לכל הזמנה יש כמות, מחיר לרחפן ודדליין, היום האחרון שאפשר לשלוח בו. שולחים רק כשכל הכמות נמצאת במלאי. עמידה בדדליין מעלה את המוניטין שלך, ואיחור שורף אותו יחד עם קנס. מוניטין גבוה מביא הזמנות גדולות יותר במחיר טוב יותר.',
   task:'שלח 20 רחפנים ללקוחות', prog:()=>game.shipped+'/20', done:()=>game.shipped>=20,
   on:()=>{orders.push({id:nextId++,client:'סקיי-ויז׳ן הפקות',qty:20,price:1180,deadline:game.day+8});log('📞 לקוח ראשון: סקיי-ויז׳ן מזמינים 20 רחפנים.')}},
 
@@ -258,8 +308,9 @@ const STAGES=[null,
   task:'סיים יום עם רווח חיובי', prog:()=>money(game.dayRevenue-game.dayExpenses), done:()=>false},
 
  {t:'בעיות אמיתיות',
-  b:'ציוד ההרכבה יוצא מכיול. ככל שהמצב יורד כך גדל הסיכון לתקלה שמשביתה את הקו באמצע יום עבודה. כיול ותחזוקה מחזירים את הקו לכשירות.',
-  task:'בצע כיול ותחזוקה לקו', prog:()=>game.repairs+'/1', done:()=>game.repairs>=1},
+  b:'ציוד ההרכבה יוצא מכיול תוך כדי עבודה. תבדוק את "מצב" הקו ליד סטטוס המכונה: מתחת ל-70% הבאדג׳ הופך לצהוב וכתוב עליו "נדרש כיול", ומתחת ל-20% הקו נועל את עצמו ולא ניתן להפעיל אותו כלל. ככל שממתינים יותר, גם הכיול עצמו יקר יותר. הקו שלך כרגע ב-65%, כבר בצהוב, אל תחכה יותר.',
+  task:'בצע כיול ותחזוקה לקו', prog:()=>game.repairs+'/1', done:()=>game.repairs>=1,
+  on:()=>{game.condition=65;log('🟡 בביקורת שגרתית נמצא שהקו ירד ל-65% מצב, מתחת לסף שדורש כיול.')}},
 
  {t:'איכות',
   b:'כל רחפן עובר בדיקת טיסה, ורחפן שנכשל הולך לפירוק אחרי שכבר שילמת על הרכיבים. טכנאים מוסמכים מעלים את אחוז המעבר, ולקוחות עלולים לדחות משלוח לא יציב ולשלם רק חלק מהסכום.',
@@ -270,7 +321,7 @@ const STAGES=[null,
   task:'קח הלוואה מהבנק', prog:()=>money(game.debt), done:()=>game.debt>0},
 
  {t:'התרחבות',
-  b:'עכשיו אפשר לקנות קו הרכבה נוסף, להגדיל את המחסן ולקבל חוזים של מאות רחפנים. כל קו מוסיף 15 רחפנים ליום אבל דורש 3 טכנאים, ומכל הזמנה יורדת עלות הובלה מבוטחת.',
+  b:'עכשיו אפשר לקנות קו הרכבה נוסף, להגדיל את המחסן ולקבל חוזים של מאות רחפנים. כל קו מוסיף 12 רחפנים ליום אבל דורש 3 טכנאים, ומכל הזמנה יורדת עלות הובלה מבוטחת.',
   task:'קנה קו הרכבה שני', prog:()=>game.lines+'/2', done:()=>game.lines>=2},
 
  {t:'אתה כבר מנהל אמיתי',
@@ -279,7 +330,16 @@ const STAGES=[null,
 ];
 
 const money=n=>'₪'+Math.round(n).toLocaleString('he-IL');
-function log(t){let e=document.getElementById('log'),p=document.createElement('p');p.textContent=`יום ${game.day}: ${t}`;e.prepend(p);while(e.children.length>24)e.lastChild.remove();}
+const clock=()=>String(game.hour).padStart(2,'0')+':00';
+function log(t){
+ game.logs.unshift(`יום ${game.day} ${clock()} — ${t}`);
+ if(game.logs.length>24)game.logs.length=24;
+ renderLog();
+}
+function renderLog(){
+ const e=document.getElementById('log'); e.innerHTML='';
+ game.logs.forEach(t=>{const p=document.createElement('p');p.textContent=t;e.append(p)});
+}
 
 function showTut(){
  const s=STAGES[game.stage];
@@ -332,7 +392,14 @@ function render(){
  document.querySelectorAll('[data-req]').forEach(el=>el.hidden=!has(el.dataset.req));
  document.getElementById('skipBtn').hidden=game.stage>=10;
  document.getElementById('cash').textContent=money(game.cash);
- document.getElementById('day').textContent=game.day;
+ document.getElementById('clock').textContent=`יום ${game.day} · ${clock()} · ${workHour()?'משמרת':'סגור'}`;
+ document.getElementById('rep').textContent=Math.round(game.rep);
+ document.getElementById('adCost').textContent=money(AD[game.adLevel].cost)+' ('+AD[game.adLevel].name+')';
+ document.getElementById('ordersWon').textContent=game.ordersWon;
+ [0,1,2,3].forEach(i=>document.getElementById('ad'+i).className=i===game.adLevel?'':'secondary');
+ document.getElementById('maintBtn').textContent='כיול ותחזוקה — '+money(maintCost());
+ document.getElementById('dispatchBtn').textContent=game.dispatcher?'פטר':'העסק — '+money(DISPATCHER_WAGE)+'/יום';
+ document.getElementById('dispatchBtn').className=game.dispatcher?'red':'';
  document.getElementById('revenue').textContent=money(game.monthRevenue);
  document.getElementById('expenses').textContent=money(game.monthExpenses);
  document.getElementById('profit').textContent=money(game.monthRevenue-game.monthExpenses);
@@ -340,7 +407,7 @@ function render(){
  document.getElementById('workers').textContent=game.workers;
  document.getElementById('needWorkers').textContent=game.lines*PER_LINE;
  document.getElementById('machines').textContent=game.lines;
- document.getElementById('capacityLine').textContent=(15*game.lines)+' רחפנים ליום';
+ document.getElementById('capacityLine').textContent=(PER_CYCLE*WORK_HOURS*game.lines)+' רחפנים ליום (משמרת 08:00–20:00)';
  document.getElementById('elecLine').textContent=money(260*game.lines)+' ליום עבודה';
  document.getElementById('maintLine').textContent=money(3600*game.lines);
  document.getElementById('wageCost').textContent=money(game.workers*WAGE);
@@ -354,40 +421,65 @@ function render(){
  document.getElementById('cap').textContent=Math.floor(stored())+'/'+game.capacity;
  document.getElementById('batchDone').textContent=game.produced;
  document.getElementById('finished').textContent=Math.floor(game.finished);
- document.getElementById('condition').textContent='מצב '+Math.round(game.condition)+'%';
- document.getElementById('condition').className='badge '+(game.condition>60?'ok':game.condition>25?'warn':'bad');
+ document.getElementById('condition').textContent='מצב '+Math.round(game.condition)+'%'+(needsCalibration()?' — נדרש כיול':'');
+ document.getElementById('condition').className='badge '+(game.condition>=NEEDS_CALIBRATION?'ok':game.condition>=CONDITION_LOCK?'warn':'bad');
  document.getElementById('motorPrice').textContent=money(game.motorPrice);
  document.getElementById('marketMotor').textContent=money(game.motorPrice);
  document.getElementById('marketPrice').textContent=money(game.marketPrice);
  document.getElementById('demand').textContent=['נמוך','בינוני','גבוה'][game.demand-1];
  document.getElementById('debt').textContent=money(game.debt);
  document.getElementById('dailyPay').textContent=money(game.debt>0?Math.max(200,game.debt*0.02):0);
- document.getElementById('machineStatus').textContent=game.production?'פועל':'כבוי';
- document.getElementById('machineStatus').className='badge '+(game.production?'ok':'warn');
+ document.getElementById('machineStatus').textContent=game.production?(workHour()?'פועל':'ידלוק ב-08:00'):'כבוי';
+ document.getElementById('machineStatus').className='badge '+(game.production?(workHour()?'ok':'warn'):'warn');
  document.getElementById('prodBtn').textContent=game.production?'עצור ייצור':'הפעל ייצור';
- document.getElementById('statusNotice').textContent=game.production?'הקו פועל. רחפנים שעברו בדיקת טיסה נכנסים למחסן.':'המפעל מושבת כרגע. הפעל קו ייצור כדי להתחיל.';
+ document.getElementById('statusNotice').textContent=
+  game.production
+   ?(workHour()?'הקו פועל. רחפנים שעברו בדיקת טיסה נכנסים למחסן.':'המתג דלוק, אבל עכשיו לילה. הייצור יתחדש אוטומטית ב-08:00.')
+   :(workHour()?'המפעל מושבת כרגע. הפעל קו ייצור כדי להתחיל.':'המפעל מושבת ללילה. אם תשאיר את המתג כבוי, הוא יישאר כבוי גם מחר בבוקר.');
  document.getElementById('prodBar').style.width=(game.progress*100)+'%';
  document.getElementById('pauseBtn').textContent=game.paused?'המשך':'השהה';
- renderOrders();renderTask();save();
+ renderOrders();renderTask();renderSlots();save();
 }
 
-// ── שמירת התקדמות ברענון ──
-const SAVE_KEY='factory-manager-save';
-function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify({game,orders,nextId}))}catch(e){}}
+// ── שמירת התקדמות ברענון, שלושה משחקים במקביל ──
+let slot=+(localStorage.getItem('fm-slot')||1);
+const slotKey=n=>'fm-save-'+n;
+function save(){try{localStorage.setItem(slotKey(slot),JSON.stringify({game,orders,nextId}))}catch(e){}}
 function load(){
  try{
-  const d=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');
+  const d=JSON.parse(localStorage.getItem(slotKey(slot))||'null');
   if(!d||!d.game)return false;
-  Object.assign(game,d.game);          // שדות חדשים שומרים על ברירת המחדל
+  Object.assign(game,freshGame(),d.game);   // שדות חדשים מקבלים ברירת מחדל
   orders=d.orders||[]; nextId=d.nextId||orders.length+1;
   game.paused=false;
   return true;
  }catch(e){return false}
 }
+function renderSlots(){
+ const sel=document.getElementById('slotSel');
+ if(document.activeElement===sel)return;    // לא לרענן בזמן שהתפריט פתוח
+ sel.innerHTML=[1,2,3].map(n=>{
+  let d=null; try{d=JSON.parse(localStorage.getItem(slotKey(n))||'null')}catch(e){}
+  const label=d&&d.game?`משחק ${n}: יום ${d.game.day}, שלב ${d.game.stage}`:`משחק ${n}: ריק`;
+  return `<option value="${n}" ${n===slot?'selected':''}>${label}</option>`;
+ }).join('');
+}
+function startFresh(){
+ game=freshGame(); orders=[]; nextId=1;
+ log('ברוך הבא למפעל הרחפנים.');
+ render(); showTut();
+}
+function switchSlot(n){
+ save(); slot=n; localStorage.setItem('fm-slot',n);
+ document.getElementById('tut').hidden=true;
+ if(load()){render();renderLog();renderSlots();if(game.tutOpen)showTut();}
+ else{startFresh();renderSlots()}
+}
 function resetGame(){
- if(!confirm('להתחיל משחק חדש? ההתקדמות הנוכחית תימחק.'))return;
- try{localStorage.removeItem(SAVE_KEY)}catch(e){}
- location.reload();
+ if(!confirm(`לאפס את משחק ${slot}? ההתקדמות בו תימחק.`))return;
+ try{localStorage.removeItem(slotKey(slot))}catch(e){}
+ document.getElementById('tut').hidden=true;
+ startFresh(); renderSlots();
 }
 function changeFin(rev,cost){
  game.cash+=rev-cost;
@@ -397,22 +489,33 @@ function changeFin(rev,cost){
 const enoughWorkers=()=>!has('workers')||game.workers>=game.lines*PER_LINE;
 const stored=()=>game.motors+game.batteries+game.finished;
 
+// מתחת ל-70% מצב, יש סיכון תקלה גובר; מתחת ל-20% הקו נועל את עצמו
+const NEEDS_CALIBRATION=70, CONDITION_LOCK=20;
+const needsCalibration=()=>has('breakdowns')&&game.condition<NEEDS_CALIBRATION;
+function maintCost(){return Math.round(1100+(100-game.condition)*6)} // ככל שהמצב גרוע יותר, הכיול יקר יותר
+
+// blockedReason: סיבות אמיתיות שמכבות את הקו (ולא מאפשרות להדליק אותו בכלל).
+// שעות לילה נבדקות בנפרד: הן לא כיבוי אמיתי, רק השהיה שקטה עד הבוקר.
 function blockedReason(){
  if(!enoughWorkers())return 'אין מספיק טכנאים להפעלת הקווים.';
  if(has('materials')&&(game.motors<1||game.batteries<1))return 'נגמרו ערכות המנועים או הסוללות.';
- if(has('breakdowns')&&game.condition<20)return 'הקו יצא מכיול לגמרי. בצע תחזוקה לפני הפעלה.';
+ if(has('breakdowns')&&game.condition<CONDITION_LOCK)return 'הקו יצא מכיול לגמרי (מתחת ל-20%). בצע כיול לפני הפעלה.';
  if(game.finished>=game.capacity)return 'המחסן מלא. שלח הזמנות כדי לפנות מקום.';
  return null;
 }
 function toggleProduction(){
+ // המתג עצמו לא נחסם ע"י שעת לילה: אם מדליקים באמצע הלילה, המצב נשאר "דלוק" גם בבוקר.
  if(game.production){game.production=false;log('קו ההרכבה נעצר.');render();return}
  const r=blockedReason(); if(r){log(r);render();return}
- game.production=true;log('קו ההרכבה הופעל.');render()
+ game.production=true;
+ log(workHour()?'קו ההרכבה הופעל.':'קו ההרכבה נדלק. הוא ימתין בשקט וישרת ייצור אוטומטית כשהמשמרת תתחיל ב-08:00.');
+ render()
 }
 function maintain(){
- if(game.cash<1100){log('אין מספיק מזומן לתחזוקה.');return}
- changeFin(0,1100);game.condition=Math.min(100,game.condition+35);game.repairs++;
- log('🔧 בוצע כיול ותחזוקה. מצב הקו עלה.');render()
+ const cost=maintCost();
+ if(game.cash<cost){log('אין מספיק מזומן לתחזוקה.');return}
+ changeFin(0,cost);game.condition=Math.min(100,game.condition+35);game.repairs++;
+ log(`🔧 בוצע כיול ותחזוקה תמורת ${money(cost)}. מצב הקו עלה ל-${Math.round(game.condition)}%.`);render()
 }
 function buyMotors(){
  let q=Math.max(10,Math.floor(+document.getElementById('motorQty').value||0)),cost=q*game.motorPrice+400;
@@ -467,30 +570,54 @@ function buyWarehouse(){
  changeFin(0,12000);game.capacity+=200;log(`📦 המחסן הורחב ל-${game.capacity} יחידות.`);render()
 }
 function ship(id){
- let o=orders.find(x=>x.id===id); if(!o||game.finished<o.qty)return;
+ let o=orders.find(x=>x.id===id); if(!o||game.finished<o.qty)return false;
  let pay=o.qty*o.price;
  if(has('quality')&&game.quality<88&&Math.random()<0.35){
    pay*=0.7;log(`⚠️ ${o.client} החזירו רחפנים שנפלו בבדיקה אצלם. שולמו 70% בלבד.`);
+   if(has('reputation'))game.rep=Math.max(5,game.rep-2);
+ }else if(has('reputation')){
+   game.rep=Math.min(100,game.rep+(o.deadline-game.day>=2?1.5:0.5)); // מוקדם = יותר מוניטין
  }
  let shipCost=has('expansion')?o.qty*SHIP_PER_UNIT:0;
- game.finished-=o.qty;game.shipped+=o.qty;
+ game.finished-=o.qty;game.shipped+=o.qty;game.ordersWon++;
  changeFin(pay,shipCost);
  orders=orders.filter(x=>x.id!==id);
  log(`✅ ${o.qty} רחפנים נשלחו ל${o.client} תמורת ${money(pay)}.`);render()
+ return true;
+}
+function setAd(level){game.adLevel=level;log(`📣 רמת הפרסום נקבעה ל: ${AD[level].name}.`);render()}
+function toggleDispatcher(){
+ game.dispatcher=!game.dispatcher;
+ log(game.dispatcher?'📋 מנהל המשלוחים הועסק. מעכשיו הוא שולח הזמנות מוכנות בעצמו.':'מנהל המשלוחים פוטר.');
+ render();
+}
+function autoDispatch(){
+ // רץ על העתק של הרשימה, כי ship() מסנן את orders תוך כדי
+ [...orders].forEach(o=>{ if(Math.floor(game.finished)>=o.qty)ship(o.id) });
+}
+function skipDay(){
+ // מקפיץ 24 שעות קדימה, כולל כל ההרכבה שהייתה בשעות העבודה שבדרך
+ const wasPaused=game.paused; game.paused=false;
+ for(let i=0;i<24;i++)tick();
+ game.paused=wasPaused; render();
 }
 const CLIENTS=['סקיי-ויז׳ן הפקות','אגרו-דרון','מיפוי ישראל בע״מ','נדל״ן מהאוויר','טכנודרון ייבוא','עיריית חיפה — פיקוח'];
 function genOrder(){
  let big=has('expansion');
+ // מוניטין גבוה מביא הזמנות גדולות יותר במחיר טוב יותר; מוניטין נמוך עושה את ההפך
+ const repMul=has('reputation')?0.6+game.rep/100*0.8:1;
  // חוזה גדול מהמחסן לא ניתן למילוי לעולם, ולכן נחתך לפי הנפח
- let qty=Math.min(game.capacity,big?60+Math.floor(Math.random()*90):15+Math.floor(Math.random()*25));
- let price=Math.round(game.marketPrice*(0.95+Math.random()*0.18));
+ let qty=Math.min(game.capacity,Math.round((big?60+Math.random()*90:15+Math.random()*25)*repMul));
+ qty=Math.max(5,qty);
+ let price=Math.round(game.marketPrice*(0.9+Math.random()*0.15)*(has('reputation')?0.85+game.rep/100*0.3:1));
  orders.push({id:nextId++,client:CLIENTS[Math.floor(Math.random()*CLIENTS.length)],qty,price,deadline:game.day+4+Math.floor(Math.random()*6)});
  log(`📞 הזמנה חדשה: ${qty} רחפנים ב-${money(price)} ליחידה.`);
 }
-function newDay(){
+function closeDay(){
  // ── סגירת יום: קודם ההוצאות של היום שנגמר, אחר כך בדיקת רווח ──
  let exp=0;
  if(has('workers'))exp+=game.workers*WAGE;
+ if(game.dispatcher)exp+=DISPATCHER_WAGE;
  if(has('expenses'))exp+=(game.production?260*game.lines:90)+400+120*game.lines;
  if(has('bank')&&game.debt>0){
    game.debt+=game.debt*0.0015;
@@ -519,18 +646,25 @@ function newDay(){
  if(has('materials'))game.motorPrice=Math.max(240,Math.round(270+Math.random()*90));
  if(has('orders')){
    orders=orders.filter(o=>{
-     if(game.day>o.deadline){log(`❌ פספסת את הדדליין של ${o.client}. ההזמנה בוטלה וקנס ${money(o.qty*60)}.`);changeFin(0,o.qty*60);return false}
+     if(game.day>o.deadline){
+       log(`❌ פספסת את הדדליין של ${o.client}. ההזמנה בוטלה, קנס ${money(o.qty*60)}, והמוניטין נפגע.`);
+       changeFin(0,o.qty*60);game.rep=Math.max(5,game.rep-6);
+       return false;
+     }
      return true;
    });
-   if(orders.length<(has('expansion')?4:2)&&Math.random()<0.45)genOrder();
+   // סיכוי להזמנה חדשה ליום: בסיס + בונוס פרסום, מוגבל למספר הזמנות פתוחות
+   const adBonus=has('marketing')?[0,0.12,0.25,0.42][game.adLevel]:0;
+   const maxOpen=has('expansion')?4:2;
+   if(orders.length<maxOpen&&Math.random()<0.45+adBonus)genOrder();
+   if(has('marketing')&&game.adLevel>0&&orders.length<maxOpen+2&&Math.random()<adBonus)genOrder();
  }
+ if(has('marketing')&&game.adLevel>0)changeFin(0,AD[game.adLevel].cost);
  if(game.day%30===0){
    log(`📅 סוף חודש. רווח/הפסד: ${money(game.monthRevenue-game.monthExpenses)}.`);
    game.monthRevenue=0;game.monthExpenses=0;
  }
  if(has('events')&&Math.random()<0.16)randomEvent();
- game.day++;
- render()
 }
 function randomEvent(){
  let events=[
@@ -540,38 +674,49 @@ function randomEvent(){
   ()=>{let x=4500;game.cash+=x;game.monthRevenue+=x;game.dayRevenue+=x;log('🤝 לקוח ותיק רכש 4 רחפנים ישירות מהמחסן: ₪4,500.');}
  ];events[Math.floor(Math.random()*events.length)]()
 }
+// ── שעון המפעל: כל שנייה אמיתית = שעה במפעל. משמרת 08:00–20:00. ──
+const SHIFT_START=8, SHIFT_END=20;
+const workHour=()=>game.hour>=SHIFT_START&&game.hour<SHIFT_END;
+
+function produceHour(){
+ for(let m=0;m<game.lines;m++)for(let i=0;i<PER_CYCLE;i++){
+   if(has('materials')){
+     if(game.motors<1||game.batteries<1)break;
+     game.motors-=1;game.batteries-=1;
+   }
+   if(game.finished>=game.capacity)break;
+   if(has('quality')&&Math.random()>game.quality/100){log('פסילה: רחפן אחד נכשל בבדיקת טיסה.');continue}
+   game.finished++;game.produced++;
+ }
+ if(has('breakdowns'))game.condition=Math.max(0,game.condition-0.4*game.lines);
+}
 function tick(){
  checkStage();
- if(game.paused||!game.production)return;
- const r=blockedReason();
- if(r){game.production=false;log('ההרכבה נעצרה: '+r);render();return}
- game.progress+=0.5;
- if(game.progress>=1){
-   game.progress=0;
-   for(let m=0;m<game.lines;m++)for(let i=0;i<PER_CYCLE;i++){
-     if(has('materials')){
-       if(game.motors<1||game.batteries<1)break;
-       game.motors-=1;game.batteries-=1;
-     }
-     if(game.finished>=game.capacity)break;
-     if(has('quality')&&Math.random()>game.quality/100){log('פסילה: רחפן אחד נכשל בבדיקת טיסה.');continue}
-     game.finished++;game.produced++;
-   }
+ if(game.paused)return;
+ if(game.production){
+   const r=blockedReason();
+   if(r){game.production=false;log('ההרכבה נעצרה: '+r);render();return}
+   if(workHour())produceHour();   // בלילה המתג נשאר דלוק, פשוט לא מייצרים
  }
- if(has('breakdowns'))game.condition=Math.max(0,game.condition-0.05*game.lines);
+ if(game.dispatcher&&has('orders'))autoDispatch();
+ game.hour++;
+ if(game.hour>=24)game.hour=0;
+ // הפס מתקדם רק כשבאמת מייצרים כרגע (קו דלוק + בתוך שעות המשמרת)
+ game.progress=(game.production&&workHour())?(game.hour-SHIFT_START)/(SHIFT_END-SHIFT_START):0;
+ // סוגרים יום ומחשבים אירועים חדשים ב-08:00, כשהמשמרת נפתחת, לא באמצע הלילה
+ if(game.hour===SHIFT_START){game.day++;closeDay()}
  render()
 }
 setInterval(tick,1000);
-setInterval(()=>{if(!game.paused)newDay()},15000);
 function pauseGame(){game.paused=!game.paused;render()}
 if(load()){
- log(`המשחק נטען מהמצב האחרון: יום ${game.day}, שלב ${game.stage} בהדרכה.`);
- render();
+ renderLog();render();
  if(game.tutOpen)showTut();   // רוענן באמצע הסבר שלב, מציגים אותו שוב
 }else{
  log('ברוך הבא למפעל הרחפנים.');
  render();showTut();
 }
+renderSlots();
 </script>
 </body>
 </html>
