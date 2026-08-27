@@ -174,9 +174,11 @@ tr:hover td{background:#fafbfd}
        <div class="row" data-req="workers"><span>טכנאים נדרשים</span><b id="needWorkers">3</b></div>
        <div class="row" data-req="expenses"><span>חשמל</span><b id="elecLine">₪260 ליום עבודה</b></div>
        <div class="row" data-req="expenses"><span>תחזוקה חודשית</span><b id="maintLine">₪3,600</b></div>
+       <div id="lineStatusBox" style="margin-top:9px;line-height:1.8"></div>
        <div class="controls" style="margin-top:10px">
         <button onclick="toggleProduction()" id="prodBtn">הפעל ייצור</button>
         <button class="secondary" onclick="maintain()" data-req="breakdowns" id="maintBtn">כיול ותחזוקה — ₪1,100</button>
+        <button class="amber" onclick="repairNextLine()" data-req="breakdowns" id="repairBtn">🛠️ אין פס תקול</button>
        </div>
       </div>
       <div class="box">
@@ -389,7 +391,9 @@ const categoryByKey=key=>COMPONENT_CATEGORIES.find(c=>c.key===key);
 const defaultBom=()=>Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,c.variants[1].id]));
 const variantCost=id=>Math.round(game?.componentPrices?.[id]||componentById(id)?.base||0);
 const baseVariantCost=id=>componentById(id)?.base||0;
-const bomUnitCost=(bom)=>COMPONENT_CATEGORIES.reduce((s,c)=>s+variantCost(bom[c.key]),0);
+const bomUnitCost=(bom)=>COMPONENT_CATEGORIES.reduce((s,c)=>s+variantCost(bom[c.key])*c.per,0);
+// עלות הרכיבים של רחפן סטנדרטי במחירי בסיס. עוגן לכל התמחור בשוק.
+const STD_MAT_COST=COMPONENT_CATEGORIES.reduce((s,c)=>s+c.variants[1].base*c.per,0);
 const bomSpecScore=(bom)=>COMPONENT_CATEGORIES.reduce((s,c)=>{
  const v=componentById(bom[c.key]); return s+(v?c.variants.findIndex(x=>x.id===v.id)-1:0);
 },0);
@@ -399,15 +403,14 @@ const freshGame=()=>({
  stock:Object.fromEntries(ALL_COMPONENTS.map(v=>[v.id,0])),
  capacity:900, finished:0, finishedByModel:{H2:0}, progress:0, partsBought:0, workers:0, lines:1, condition:100,
  quality:92, production:false, produced:0, shipped:0, repairs:0, debt:0,
- demand:2, marketPrice:1100, stage:1, tutOpen:false,
+ demand:2, marketPrice:Math.round(STD_MAT_COST*1.35), stage:1, tutOpen:false,
  rep:55, adLevel:0, ordersWon:0, logs:[], dispatcher:false, procurement:false, wage:DEFAULT_WAGE, strike:false,
- lineIssues:[], productionBuffer:0, componentMarketIndex:100,
+ lineIssues:[], lineModels:['H2'], lineBuffers:[0], componentMarketIndex:100, blockReason:null,
  componentPrices:Object.fromEntries(ALL_COMPONENTS.map(v=>[v.id,v.base])),
  activeModelId:'H2', modelCounter:2,
  models:{
   H2:{id:'H2',name:'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0}
  },
- modelShopIntroShown:false,
  founderCredit:18000, founderCreditStartDay:3,
  clearanceFund:0
 });
@@ -427,14 +430,22 @@ function seedStarterStock(g){
  return g;
 }
 
+// כמויות רכש נגזרות מהמפרט: כמה רחפנים הקנייה מספיקה להם, ולא מספר שרירותי
+const BUY_BUILDS=10, EXPRESS_BUILDS=20;
 const DISPATCHER_WAGE=250, PROCURE_WAGE=200;
 const currentModel=()=>game.models[game.activeModelId];
 const modelFinished=id=>Math.floor(game.finishedByModel?.[id]||0);
 const setModelFinished=(id,n)=>{game.finishedByModel[id]=Math.max(0,Math.floor(n)); if(id===game.activeModelId)game.finished=game.finishedByModel[id];};
 const activeBom=()=>currentModel()?.bom||defaultBom();
+// הדגם שפס מסוים מרכיב כרגע. פס שהדגם שלו הוצא מהשוק חוזר לדגם הפעיל.
+const lineModel=i=>{const m=game.models[game.lineModels?.[i]];return m&&m.status==='active'?m:currentModel()};
+const activeModels=()=>Object.values(game.models).filter(m=>m.status==='active');
+const linesUsing=id=>game.lineModels.slice(0,game.lines).filter((_,i)=>lineModel(i).id===id).length;
 const selectedVariant=(key,bom=activeBom())=>componentById(bom[key]||categoryByKey(key).variants[1].id);
 const modelSpecScore=m=>bomSpecScore(m?.bom||defaultBom());
 const modelPriceMul=m=>1+modelSpecScore(m)*0.018;
+// מחיר צפוי ליחידה: מחיר השוק כפול יחס עלות הרכיבים של הדגם ובונוס המפרט
+const modelPriceEstimate=m=>Math.round(game.marketPrice*(modelMatCost(m)/STD_MAT_COST)*modelPriceMul(m));
 const modelMatCost=m=>bomUnitCost(m?.bom||defaultBom());
 function materialCharge(gross){
  let credit=0;
@@ -454,13 +465,18 @@ function selectedStockTotal(bom=activeBom()){
 function totalComponentUnits(){return ALL_COMPONENTS.reduce((s,v)=>s+(game.stock[v.id]||0),0)}
 function stored(){return totalComponentUnits()+Object.values(game.finishedByModel||{}).reduce((s,n)=>s+Math.floor(n||0),0)}
 function switchModel(id){
- const m=game.models[id]; if(!m||m.status==='retired')return;
- if(id===game.activeModelId)return;
+ const m=game.models[id]; if(!m||m.status!=='active')return;
  setModelFinished(game.activeModelId,game.finished);
  game.activeModelId=id;
  game.finished=modelFinished(id);
- if(game.production)game.production=false;
- log(`🔁 הדגם הפעיל הוחלף ל-${m.name}. הקו נעצר עד שתפעיל אותו מחדש.`);
+ game.lineModels[0]=id;   // פס 1 עובר לדגם; שאר הפסים נשארים על מה שהם מייצרים
+ log(`🔁 פס 1 עובר לייצר ${m.name}. הדגם הזה גם נבחר לעריכה בסטודיו.`);
+ render();
+}
+function setLineModel(i,id){
+ const m=game.models[id]; if(!m||m.status!=='active')return;
+ game.lineModels[i]=id;
+ log(`🔁 פס ${i+1} מייצר מעכשיו ${m.name}.`);
  render();
 }
 function createNewModel(){
@@ -471,7 +487,7 @@ function createNewModel(){
  const old=currentModel();
  const id='M'+game.modelCounter++;
  const bom=Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,old?.bom?.[c.key]||c.variants[1].id]));
- const name='X'+(game.modelCounter+10);
+ const name=(prompt('איך יקרא הדגם החדש? (למשל: פרו למקצוענים / לייט לחובבנים)','X'+(game.modelCounter+10))||'').trim().slice(0,24)||('X'+(game.modelCounter+10));
  changeFin(0,cost);
  game.models[id]={id,name,createdDay:game.day,bom,status:'active',retireDay:null,clearanceUntil:null,sold:0};
  game.activeModelId=id; game.finished=0; game.finishedByModel[id]=0; game.production=false;
@@ -494,7 +510,7 @@ function finishClearance(id,auto=false){
  const m=game.models[id]; if(!m||m.status==='active')return;
  let units=modelFinished(id);
  if(units>0){
-   const payout=Math.round(units*game.marketPrice*0.62);
+   const payout=Math.round(units*modelPriceEstimate(m)*0.62);
    setModelFinished(id,0); game.cash+=payout; game.monthRevenue+=payout; game.dayRevenue+=payout; m.sold=(m.sold||0)+units;
    log(`${auto?'⏱️ ':''}מכירת חיסול: ${units} יח׳ מדגם ${m.name} נמכרו ב-${money(payout)}.`);
  }
@@ -532,7 +548,7 @@ function renderModels(){
    return `<div class="modelCard ${active?'active':''} ${m.status==='retired'?'retired':''}">
       <span class="badge ${active?'ok':m.status==='clearance'?'warn':''} modelBadge">${status}</span>
       <h3>${m.name}</h3>
-      <div class="modelSpec">נוצר ביום ${m.createdDay} · עלות רכיבים ${money(modelMatCost(m))} · מלאי ${units}</div>
+      <div class="modelSpec">נוצר ביום ${m.createdDay} · עלות רכיבים ${money(modelMatCost(m))} · מחיר צפוי ${money(modelPriceEstimate(m))} · מלאי ${units}</div>
       <div class="modelSpec">מפרט: ${modelSpecScore(m)>=0?'+':''}${modelSpecScore(m)} נק׳ · ${m.status==='clearance'?'חלון עד יום '+m.clearanceUntil:''}</div>
       <div class="controls" style="margin-top:9px">${btn}</div>
     </div>`;
@@ -555,14 +571,13 @@ function renderComponents(){
         </div>`;
       }).join('')}</div>
       <div class="componentFooter"><span class="muted">${c.per}× · עלות לדגם: ${money(variantCost(selected)*c.per)}</span>
-        <button class="secondary" onclick="buyVariant('${selected}',40)">קנה 40</button></div>
+        <button class="secondary" onclick="buyVariant('${selected}',${c.per*BUY_BUILDS})">קנה ל-${BUY_BUILDS} רחפנים (${c.per*BUY_BUILDS})</button></div>
    </div>`;
  }).join('');
 }
 function chooseComponent(key,id){
  const m=currentModel(); if(!m)return;
  m.bom[key]=id;
- if(game.production){game.production=false;log('החלפת רכיב עצרה את הקו עד שתפעיל אותו מחדש.')}
  log(`🧩 ${categoryByKey(key).name} לדגם ${m.name}: ${componentById(id).name}.`);
  render();
 }
@@ -575,10 +590,9 @@ const AD=[{cost:0,name:'כבוי'},{cost:400,name:'מקומי'},{cost:1200,name:
 
 // ── שלבי ההדרכה ──────────────────────────────────────────────
 // כל פיצ'ר נפתח בשלב שלו; has() שולט גם ב-UI (data-req) וגם בסימולציה.
-const UNLOCK={sales:2,orders:2,market:2,reputation:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,marketing:9,events:10};
-// חנות הדגמים לא נעולה לפי שלב ההדרכה (שנעצר ב-10), אלא לפי אבן דרך עסקית ממש מאוחרת
-const MODEL_SHOP_MILESTONE=80;
-const has=f=>f==='modelShop'?(game.stage>=10&&game.shipped>=MODEL_SHOP_MILESTONE):game.stage>=UNLOCK[f];
+const UNLOCK={sales:2,orders:2,market:2,reputation:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,marketing:9,events:10,modelShop:11};
+const MODEL_SHOP_MILESTONE=80;   // כמה רחפנים צריך לשלוח כדי לפתוח את שלב 11
+const has=f=>game.stage>=UNLOCK[f];
 
 const STAGES=[null,
  {t:'המפעל הראשון שלך',
@@ -588,7 +602,7 @@ const STAGES=[null,
  {t:'הלקוח הראשון',
   b:'נפתחו הזמנות לקוחות. לכל הזמנה יש כמות, מחיר לרחפן ודדליין, היום האחרון שאפשר לשלוח בו. שולחים רק כשכל הכמות נמצאת במלאי. עמידה בדדליין מעלה את המוניטין שלך, ואיחור שורף אותו יחד עם קנס. מוניטין גבוה מביא הזמנות גדולות יותר במחיר טוב יותר.',
   task:'שלח 20 רחפנים ללקוחות', prog:()=>game.shipped+'/20', done:()=>game.shipped>=20,
-  on:()=>{orders.push({id:nextId++,client:'סקיי-ויז׳ן הפקות',qty:20,price:1180,deadline:game.day+8});log('📞 לקוח ראשון: סקיי-ויז׳ן מזמינים 20 רחפנים.')}},
+  on:()=>{orders.push({id:nextId++,client:'סקיי-ויז׳ן הפקות',qty:20,price:Math.round(STD_MAT_COST*1.32),deadline:game.day+8});log('📞 לקוח ראשון: סקיי-ויז׳ן מזמינים 20 רחפנים.')}},
 
  {t:'לומדים לרכוש רכיבים',
   b:'כל רחפן מורכב משש קטגוריות רכיבים: מנועים, מדחפים, בקר טיסה, מצלמה, סוללות ומסגרת. לכל קטגוריה יש 4 אפשרויות, ואתה יכול לבחור בדיוק איזה רכיב לקנות. חשוב: כבר קיבלת מלאי פתיחה נדיב מהמפרט הסטנדרטי, לכן אין צורך לקנות עכשיו. פשוט לחץ על «הבנתי, קדימה» כדי להמשיך; בהמשך תוכל לחזור לרכש ולקנות כשמלאי יורד.',
@@ -622,9 +636,18 @@ const STAGES=[null,
   task:'קנה קו הרכבה שני', prog:()=>game.lines+'/2', done:()=>game.lines>=2},
 
  {t:'אתה כבר מנהל אמיתי',
-  b:'ההדרכה נגמרה. כל המערכות פתוחות: שוק משתנה, ספקים, אירועים אקראיים, הלוואות גדולות והשקעות. מכאן ההחלטות שלך.',
-  task:'', prog:()=>'', done:()=>false}
+  b:'כל המערכות פתוחות: שוק משתנה, ספקים, אירועים אקראיים, הלוואות גדולות והשקעות. נשאר שלב אחד אחרון: אחרי '+MODEL_SHOP_MILESTONE+' רחפנים ששלחת ללקוחות ייפתח סטודיו הדגמים, ותוכל לתכנן רחפן משלך.',
+  task:'שלח '+MODEL_SHOP_MILESTONE+' רחפנים ללקוחות', prog:()=>game.shipped+'/'+MODEL_SHOP_MILESTONE, done:()=>game.shipped>=MODEL_SHOP_MILESTONE},
+
+ {t:'רחפן מותאם אישית',
+  b:'סטודיו הדגמים נפתח. «צור דגם חדש» פותח מפרט חדש, ובו אתה בוחר לכל אחת משש הקטגוריות רמה: תקציבי, סטנדרט, פרו או אקסטרים. '+
+    'עלות הרכיבים של הדגם היא זו שקובעת את המחיר שלקוחות משלמים עליו: רחפן אקסטרים למקצוענים נמכר ביוקר, רחפן תקציבי לחובבנים נמכר בזול אבל בכמויות. '+
+    'אפשר להחזיק כמה דגמים פעילים במקביל — הזמנות חדשות מגיעות לכל אחד מהם — ולהחליף איזה דגם רץ עכשיו על הקו. מכאן ההחלטות שלך.',
+  task:'צור דגם מותאם אישית ומכור ממנו',
+  prog:()=>customModelSold()?'✅ הושלם':(Object.keys(game.models).length>1?'הדגם נוצר, עכשיו למכור':'עדיין לא נוצר דגם'),
+  done:()=>false}
 ];
+const customModelSold=()=>Object.values(game.models).some(m=>m.id!=='H2'&&(m.sold||0)>0);
 
 const money=n=>'₪'+Math.round(n).toLocaleString('he-IL');
 const clock=()=>String(game.hour).padStart(2,'0')+':00';
@@ -640,7 +663,7 @@ function renderLog(){
 
 function showTut(){
  const s=STAGES[game.stage];
- document.getElementById('tutStep').textContent=`שלב ${game.stage} מתוך 10`;
+ document.getElementById('tutStep').textContent=`שלב ${game.stage} מתוך 11`;
  document.getElementById('tutTitle').textContent=s.t;
  document.getElementById('tutBody').textContent=s.b;
  const task=document.getElementById('tutTask');
@@ -660,7 +683,7 @@ function checkStage(){
  if(s&&s.done&&s.done()&&document.getElementById('tut').hidden)advance();
 }
 function skipTutorial(){
- while(game.stage<10){const s=STAGES[game.stage+1];game.stage++;if(s.on)s.on();}
+ while(game.stage<11){const s=STAGES[game.stage+1];game.stage++;if(s.on)s.on();}
  document.getElementById('tut').hidden=true;game.paused=false;
  log('⏭️ ההדרכה דולגה. כל המערכות פתוחות.');render();
 }
@@ -669,7 +692,7 @@ function renderTask(){
  const s=STAGES[game.stage];
  document.getElementById('taskbar').hidden=!s.task;
  if(!s.task)return;
- document.getElementById('taskStep').textContent=`שלב ${game.stage} מתוך 10 — ${s.t}`;
+ document.getElementById('taskStep').textContent=`שלב ${game.stage} מתוך 11 — ${s.t}`;
  document.getElementById('taskText').textContent='🎯 '+s.task;
  document.getElementById('taskProg').textContent=s.prog();
 }
@@ -689,7 +712,7 @@ function renderOrders(){
 }
 function render(){
  document.querySelectorAll('[data-req]').forEach(el=>el.hidden=!has(el.dataset.req));
- document.getElementById('skipBtn').hidden=game.stage>=10;
+ document.getElementById('skipBtn').hidden=game.stage>=11;
  document.getElementById('cash').textContent=money(game.cash);
  document.getElementById('clock').textContent=`יום ${game.day} · ${clock()} · ${workHour()?'משמרת':'סגור'}`;
  document.getElementById('rep').textContent=Math.round(game.rep);
@@ -713,8 +736,15 @@ function render(){
  document.getElementById('machines').textContent=game.lines;
   game.lineIssues=Array.from({length:game.lines},(_,i)=>!!(game.lineIssues||[])[i]);
   const badLines=brokenLineCount();
+  game.lineModels=Array.from({length:game.lines},(_,i)=>lineModel(i).id);
   const ls=document.getElementById('lineStatusBox');
-  if(ls)ls.innerHTML=game.lineIssues.map((bad,i)=>`<div class="${bad?'lineIssue':'muted'}">פס ${i+1}: ${bad?'🔴 מושבת — נדרש טכנאי לתיקון':'🟢 תקין'}</div>`).join('');
+  const acts=activeModels();
+  if(ls&&!ls.contains(document.activeElement))ls.innerHTML=game.lineIssues.map((bad,i)=>{
+    const pick=acts.length>1
+     ?`<select onchange="setLineModel(${i},this.value)">${acts.map(m=>`<option value="${m.id}"${m.id===lineModel(i).id?' selected':''}>${m.name}</option>`).join('')}</select>`
+     :`<b>${lineModel(i).name}</b>`;
+    return `<div class="${bad?'lineIssue':'muted'}">פס ${i+1}: ${bad?'🔴 מושבת — נדרש טכנאי לתיקון':'🟢 תקין'} · מייצר ${pick}</div>`;
+  }).join('');
   const rb=document.getElementById('repairBtn'); if(rb){rb.disabled=badLines===0 || !workHour() || game.workers<1 || game.strike; rb.textContent=badLines?`🛠️ תיקון פס (${badLines})`:'🛠️ אין פס תקול';}
  document.getElementById('capacityLine').textContent=(PER_CYCLE*WORK_HOURS*game.lines)+' רחפנים ליום (משמרת 08:00–20:00)';
  document.getElementById('elecLine').textContent=money(260*game.lines)+' ליום עבודה';
@@ -742,9 +772,11 @@ function render(){
  document.getElementById('machineStatus').textContent=game.production?(workHour()?'פועל':'ידלוק ב-08:00'):'כבוי';
  document.getElementById('machineStatus').className='badge '+(game.production?(workHour()?'ok':'warn'):'warn');
  document.getElementById('prodBtn').textContent=game.production?'עצור ייצור':'הפעל ייצור';
+ const blocked=game.production?null:blockedReason();
  document.getElementById('statusNotice').textContent=
   game.production
    ?(workHour()?'הקו פועל. רחפנים שעברו בדיקת טיסה נכנסים למחסן.':'המתג דלוק, אבל עכשיו לילה. הייצור יתחדש אוטומטית ב-08:00.')
+   :blocked?'⛔ אי אפשר להפעיל ייצור — '+blocked
    :(workHour()?'המפעל מושבת כרגע. הפעל קו ייצור כדי להתחיל.':'המפעל מושבת ללילה. אם תשאיר את המתג כבוי, הוא יישאר כבוי גם מחר בבוקר.');
  document.getElementById('prodBar').style.width=(game.progress*100)+'%';
  document.getElementById('pauseBtn').textContent=game.paused?'המשך':'השהה';
@@ -763,7 +795,7 @@ function load(){
   Object.assign(game,freshGame(),d.game);   // שדות חדשים מקבלים ברירת מחדל
    game.lineIssues=Array.from({length:game.lines},(_,i)=>!!(d.game.lineIssues||[])[i]);
    while(game.lineIssues.length<game.lines)game.lineIssues.push(false);
-   game.productionBuffer=+d.game.productionBuffer||0;
+   game.lineBuffers=Array.from({length:game.lines},(_,i)=>+(d.game.lineBuffers||[])[i]||0);
    game.componentMarketIndex=+d.game.componentMarketIndex||100;
    if(!game.componentPrices)game.componentPrices=Object.fromEntries(ALL_COMPONENTS.map(v=>[v.id,v.base]));
   const fresh=freshGame();
@@ -787,11 +819,22 @@ function load(){
   if(game.finishedByModel.H2===undefined)game.finishedByModel.H2=Number(game.finished||0);
   game.finishedByModel[game.activeModelId]=Number(game.finishedByModel[game.activeModelId]||game.finished||0);
   game.finished=Number(game.finishedByModel[game.activeModelId]||0);
+  game.lineModels=Array.from({length:game.lines},(_,i)=>{
+   const id=(d.game.lineModels||[])[i];
+   return game.models[id]&&game.models[id].status==='active'?id:game.activeModelId;
+  });
   game.founderCredit=Number(game.founderCredit??18000);
   game.founderCreditStartDay=Number(game.founderCreditStartDay??3);
   game.partsBought=Number(game.partsBought||0);
   if(isOldBom)log('📦 מפרט הרכיבים שודרג: המלאי הישן הומר לגרסת סטנדרט של כל קטגוריה. ההתקדמות נשמרה.')
   orders=(d.orders||[]).map(o=>({...o,modelId:o.modelId||game.activeModelId}));
+  // שמירות ישנות נוצרו עם הזמנות ענק שאי אפשר לייצר או לממן — מקצצים אותן לגודל בר-ביצוע
+  let trimmed=0;
+  orders.forEach(o=>{
+   const cap=orderCeiling(game.models[o.modelId]||currentModel(),Math.max(1,o.deadline-game.day));
+   if(o.qty>cap){o.qty=cap;trimmed++}
+  });
+  if(trimmed)log(`📉 ${trimmed} הזמנות ישנות היו גדולות מכושר הייצור שלך וקוצצו לכמות שאפשר לעמוד בה.`);
   nextId=d.nextId||orders.length+1;
   game.paused=false;
   return true;
@@ -843,19 +886,23 @@ function blockedReason(){
  if(!enoughWorkers())return 'אין מספיק טכנאים להפעלת הקווים.';
   if(has('breakdowns')&&availableLineCount()<=0)return 'כל קווי ההרכבה מושבתים עקב תקלות. צריך טכנאי כדי לתקן פס.';
  if(has('materials')){
-   const bom=activeBom();
-   const short=COMPONENT_CATEGORIES.find(c=>(game.stock[bom[c.key]]||0)<c.per);
-   if(short){const v=componentById(bom[short.key]);return `נגמר המלאי של ${v.name}.`;}
+   const usable=Array.from({length:game.lines},(_,i)=>i).filter(i=>!game.lineIssues[i]);
+   const shortPerLine=usable.map(i=>{
+     const bom=lineModel(i).bom;
+     const c=COMPONENT_CATEGORIES.find(c=>(game.stock[bom[c.key]]||0)<c.per);
+     return c?componentById(bom[c.key]).name:null;
+   });
+   if(usable.length&&shortPerLine.every(Boolean))return `נגמר המלאי של ${shortPerLine[0]}.`;
  }
  if(has('breakdowns')&&game.condition<CONDITION_LOCK)return 'הקו יצא מכיול לגמרי (מתחת ל-20%). בצע כיול לפני הפעלה.';
- if(game.finished>=game.capacity)return 'המחסן מלא. שלח הזמנות כדי לפנות מקום.';
+ if(stored()>=game.capacity)return 'המחסן מלא. שלח הזמנות או מכור מלאי כדי לפנות מקום.';
  return null;
 }
 function toggleProduction(){
  // המתג עצמו לא נחסם ע"י שעת לילה: אם מדליקים באמצע הלילה, המצב נשאר "דלוק" גם בבוקר.
  if(game.production){game.production=false;log('קו ההרכבה נעצר.');render();return}
  const r=blockedReason(); if(r){log(r);render();return}
- game.production=true;
+ game.production=true; game.blockReason=null;
  log(workHour()?'קו ההרכבה הופעל.':'קו ההרכבה נדלק. הוא ימתין בשקט וישרת ייצור אוטומטית כשהמשמרת תתחיל ב-08:00.');
  render()
 }
@@ -879,7 +926,7 @@ function buyVariant(id,forcedQty){
 function buyPart(key){
  const c=categoryByKey(key); if(!c)return;
  const selected=activeBom()[key]||c.variants[1].id;
- const qty=Math.max(10,Math.floor(+document.getElementById('qty-'+key)?.value||40));
+ const qty=Math.max(c.per,Math.floor(+document.getElementById('qty-'+key)?.value||c.per*BUY_BUILDS));
  buyVariant(selected,qty);
 }
 function buildPartsUI(){
@@ -888,22 +935,23 @@ function buildPartsUI(){
    return `<div class="card">
       <h3>${c.icon} ${c.name}</h3>
       <div class="muted">${c.per} לרחפן · בחר סוג לרכש</div>
-      <div class="controls" style="margin-top:8px"><select id="buySel-${c.key}" onchange="document.getElementById('qty-${c.key}').value=40" style="max-width:180px">
+      <div class="controls" style="margin-top:8px"><select id="buySel-${c.key}" onchange="document.getElementById('qty-${c.key}').value=${c.per*BUY_BUILDS}" style="max-width:180px">
         ${c.variants.map(v=>`<option value="${v.id}">${v.name} · ${money(v.base)}</option>`).join('')}
-      </select><input id="qty-${c.key}" type="number" min="10" step="10" value="40" style="width:80px"><button onclick="buySelectedPart('${c.key}')">קנה</button></div>
+      </select><input id="qty-${c.key}" type="number" min="${c.per}" step="${c.per}" value="${c.per*BUY_BUILDS}" style="width:80px"><button onclick="buySelectedPart('${c.key}')">קנה</button></div>
       <div class="muted" style="margin-top:7px">עלות הקנייה כוללת ₪400 שילוח לכל הזמנה קטנה.</div>
     </div>`;
  }).join('')+
  `<div class="card" data-req="events">
     <h3>✈️ הזמנה מהירה</h3>
-    <div class="muted">40 מכל סוגי הרכיבים, מתאים להצלת קו ייצור</div>
-    <p><b>₪${(40*COMPONENT_CATEGORIES.reduce((s,c)=>s+variantCost(defaultBom()[c.key]),0)).toLocaleString('he-IL')}</b> בערך, לפי מחירי השוק הנוכחיים</p>
+    <div class="muted">ערכה שלמה ל-${EXPRESS_BUILDS} רחפנים מהמפרט הפעיל: מנועים ומדחפים ×4, סוללות ×2, השאר ×1</div>
+    <p><b id="expressPrice">—</b> לפי מחירי השוק הנוכחיים</p>
     <button class="secondary" onclick="expressOrder()">הזמנה מרוכזת</button>
   </div>`;
 }
 function buySelectedPart(key){
  const id=document.getElementById('buySel-'+key)?.value;
- const qty=Math.max(10,Math.floor(+document.getElementById('qty-'+key)?.value||40));
+ const per=categoryByKey(key).per;
+ const qty=Math.max(per,Math.floor(+document.getElementById('qty-'+key)?.value||per*BUY_BUILDS));
  buyVariant(id,qty);
 }
 function renderParts(){
@@ -913,8 +961,9 @@ function renderParts(){
    const sel=document.getElementById('buySel-'+c.key);
    const qty=document.getElementById('qty-'+c.key);
    if(sel && document.activeElement!==sel)sel.value=selected;
-   if(qty && document.activeElement!==qty)qty.value=40;
+   if(qty && document.activeElement!==qty)qty.value=c.per*BUY_BUILDS;
  });
+ const ep=document.getElementById('expressPrice'); if(ep)ep.textContent=money(expressCost());
  const notice=document.getElementById('bomNotice');
  const credit=game.founderCredit;
  if(notice)notice.innerHTML=`כל קטגוריה כוללת 4 וריאציות. הדגם הפעיל משתמש כרגע ב-${ALL_COMPONENTS.filter(v=>Object.values(bom).includes(v.id)).length} סוגי רכיבים נבחרים. `+
@@ -937,17 +986,6 @@ function renderTierUI(){
  }
  renderModels(); renderComponents(); renderClearance();
 }
-function maybeShowModelShopIntro(){
- if(!has('modelShop')||game.modelShopIntroShown)return;
- game.modelShopIntroShown=true;
- document.getElementById('tutStep').textContent='פיצ׳ר מתקדם נפתח';
- document.getElementById('tutTitle').textContent='🏭 סטודיו הדגמים: בונים רחפן משלך';
- document.getElementById('tutBody').textContent=
-  `שלחת כבר ${MODEL_SHOP_MILESTONE} רחפנים. עכשיו אפשר ליצור דגם חדש ולבחור בדיוק כל רכיב: 4 סוגי מנועים, 4 סוגי מדחפים, 4 בקרי טיסה, 4 מצלמות, 4 סוללות ו-4 מסגרות. `+
-  `אפשר להוציא דגמים ישנים מהשוק מתי שתרצה. הם עוברים לחיסול ל-14 ימים, הזמנות קיימות ממשיכות, והשאריות נפדות אוטומטית — כך אין מצב של מלאי אינסופי שנתקע.`;
- document.getElementById('tutTask').hidden=true;
- document.getElementById('tut').hidden=false; game.paused=true;
-}
 function renderClearance(){
  const el=document.getElementById('clearanceGrid'); if(!el)return;
  const old=Object.values(game.models).filter(m=>m.status!=='active');
@@ -959,18 +997,18 @@ function renderClearance(){
       <div class="controls" style="margin-top:7px"><button class="amber" onclick="sellClearance('${m.id}')">מכור שאריות עכשיו</button></div></div>`;
  }).join('');
 }
+const expressPlan=(builds=EXPRESS_BUILDS,bom=activeBom())=>COMPONENT_CATEGORIES.map(c=>({id:bom[c.key],qty:c.per*builds}));
+const expressCost=(plan=expressPlan())=>plan.reduce((s,x)=>s+x.qty*variantCost(x.id),0)+400*plan.length;
 function expressOrder(){
- const qty=40;
- const needed=COMPONENT_CATEGORIES.reduce((s,c)=>s+qty,0);
+ // ערכה שלמה: לכל רכיב הכמות שבאמת נכנסת לרחפן, בדיוק כמו מלאי הפתיחה
+ const plan=expressPlan();
+ const needed=plan.reduce((s,x)=>s+x.qty,0);
  if(stored()+needed>game.capacity){log('אין מספיק מקום במחסן להזמנה המרוכזת.');return}
- let gross=0;
- const bom=activeBom();
- COMPONENT_CATEGORIES.forEach(c=>{gross+=qty*variantCost(bom[c.key])});
- gross+=400*COMPONENT_CATEGORIES.length;
+ const gross=expressCost(plan);
  if(game.cash+game.founderCredit<gross){log('אין מספיק כסף/קרדיט להזמנה המרוכזת.');return}
  const charge=materialCharge(gross);
- COMPONENT_CATEGORIES.forEach(c=>{const id=bom[c.key];game.stock[id]=(game.stock[id]||0)+qty;game.partsBought+=qty});
- log(`✈️ נחת משלוח מרוכז: ${qty} מכל רכיב נבחר. עלות נטו ${money(charge.net)}.`);
+ plan.forEach(x=>{game.stock[x.id]=(game.stock[x.id]||0)+x.qty;game.partsBought+=x.qty});
+ log(`✈️ נחת משלוח מרוכז: רכיבים ל-${EXPRESS_BUILDS} רחפנים מהמפרט הפעיל. עלות נטו ${money(charge.net)}.`);
  render();
 }
 function hire(){
@@ -980,7 +1018,7 @@ function hire(){
 function fire(){
  if(game.workers<=0){log('אין טכנאים לפטר.');return}
  game.workers--;game.quality=Math.max(80,game.quality-1);log('טכנאי פוטר.');
- if(!enoughWorkers()&&game.production){game.production=false;log('⚠️ הקו נעצר, אין מספיק טכנאים.')}
+ if(!enoughWorkers()&&game.production)log('⚠️ הקו מושהה, אין מספיק טכנאים.')
  render()
 }
 function train(){
@@ -1013,7 +1051,8 @@ function repay(sum){
 }
 function buyMachine(){
  if(game.cash<45000){log('אין מספיק מזומן לקו הרכבה נוסף.');return}
- changeFin(0,45000);game.lines++;log(`🏗️ נרכש קו הרכבה נוסף. סה״כ ${game.lines} קווים, דרושים ${game.lines*PER_LINE} טכנאים.`);
+ changeFin(0,45000);game.lines++;game.lineModels[game.lines-1]=game.activeModelId;
+ log(`🏗️ נרכש קו הרכבה נוסף. סה״כ ${game.lines} קווים, דרושים ${game.lines*PER_LINE} טכנאים.`);
  if(!enoughWorkers()&&game.production){game.production=false;log('⚠️ הייצור נעצר, אין מספיק טכנאים לכל הקווים.')}
  render()
 }
@@ -1051,7 +1090,7 @@ function toggleDispatcher(){
 }
 function autoDispatch(){
  // רץ על העתק של הרשימה, כי ship() מסנן את orders תוך כדי
- [...orders].forEach(o=>{ if(Math.floor(game.finished)>=o.qty)ship(o.id) });
+ [...orders].forEach(o=>{ if(modelFinished(o.modelId||game.activeModelId)>=o.qty)ship(o.id) });
 }
 function toggleProcurement(){
  game.procurement=!game.procurement;
@@ -1059,10 +1098,14 @@ function toggleProcurement(){
  render();
 }
 function autoProcure(){
- const bom=activeBom();
- COMPONENT_CATEGORIES.forEach(c=>{
-   const id=bom[c.key], v=componentById(id);
-   const perHourUse=c.per*game.lines*PER_CYCLE;
+ // צריכה לשעה מחושבת מכל הפסים יחד: שני פסים עם דגמים שונים מזמינים כל אחד את הרכיבים שלו
+ const need={};
+ for(let i=0;i<game.lines;i++){
+   const bom=lineModel(i).bom;
+   COMPONENT_CATEGORIES.forEach(c=>{need[bom[c.key]]=(need[bom[c.key]]||0)+c.per*PER_CYCLE});
+ }
+ Object.entries(need).forEach(([id,perHourUse])=>{
+   const v=componentById(id);
    const reorderPoint=perHourUse*3;
    const have=game.stock[id]||0;
    if(have>=reorderPoint)return;
@@ -1082,16 +1125,26 @@ function skipDay(){
  game.paused=wasPaused; render();
 }
 const CLIENTS=['סקיי-ויז׳ן הפקות','אגרו-דרון','מיפוי ישראל בע״מ','נדל״ן מהאוויר','טכנודרון ייבוא','עיריית חיפה — פיקוח'];
+const dailyOutput=()=>PER_CYCLE*WORK_HOURS*Math.max(1,availableLineCount());
+// כמה יחידות אפשר בכלל להספיק עד הדדליין, בהתחשב במלאי הגמור, בתפוקה ובכסף לרכיבים.
+// זה מה שמגביל הזמנה, ולא מספר קבוע: בלי זה נכנסות הזמנות ענק שאי אפשר לייצר או לממן.
+function orderCeiling(m,days){
+ const buildable=modelFinished(m.id)+dailyOutput()*Math.max(1,days-1);
+ const affordable=modelFinished(m.id)+Math.floor((game.cash+game.founderCredit)*1.6/Math.max(1,modelMatCost(m)));
+ return Math.max(5,Math.min(game.capacity,buildable,affordable));
+}
 function genOrder(){
- let big=has('expansion');
+ // הזמנות מגיעות לדגם פעיל אקראי; דגם עם רכיבים יקרים נמכר ביוקר
+ const actives=Object.values(game.models).filter(x=>x.status==='active');
+ const m=actives[Math.floor(Math.random()*actives.length)]||currentModel();
+ const days=4+Math.floor(Math.random()*6);
  const repMul=has('reputation')?0.6+game.rep/100*0.8:1;
- let qty=Math.min(game.capacity,Math.round((big?60+Math.random()*90:15+Math.random()*25)*repMul));
- qty=Math.max(5,qty);
- const m=currentModel();
- const specMul=has('modelShop')?modelPriceMul(m):1;
- let price=Math.round(game.marketPrice*(0.9+Math.random()*0.15)*(has('reputation')?0.85+game.rep/100*0.3:1)*specMul);
- orders.push({id:nextId++,client:CLIENTS[Math.floor(Math.random()*CLIENTS.length)],qty,price,deadline:game.day+4+Math.floor(Math.random()*6),modelId:m?.id||'H2'});
- log(`📞 הזמנה חדשה: ${qty} רחפנים מדגם ${m?.name||'H2'} ב-${money(price)} ליחידה.`);
+ const share=(has('expansion')?0.45+Math.random()*0.35:0.30+Math.random()*0.30)*repMul;
+ const openQty=orders.filter(o=>(o.modelId||game.activeModelId)===m.id).reduce((s,o)=>s+o.qty,0);
+ const qty=Math.max(5,Math.round(Math.max(5,orderCeiling(m,days)-openQty)*share));
+ const price=Math.round(modelPriceEstimate(m)*(0.9+Math.random()*0.15)*(has('reputation')?0.85+game.rep/100*0.3:1));
+ orders.push({id:nextId++,client:CLIENTS[Math.floor(Math.random()*CLIENTS.length)],qty,price,deadline:game.day+days,modelId:m?.id||'H2'});
+ log(`📞 הזמנה חדשה: ${qty} רחפנים מדגם ${m?.name||'H2'} ב-${money(price)} ליחידה, עד יום ${game.day+days}.`);
 }
 function closeDay(){
  // ── סגירת יום: קודם ההוצאות של היום שנגמר, אחר כך בדיקת רווח ──
@@ -1116,19 +1169,17 @@ function closeDay(){
  if(has('breakdowns')){
    game.condition=Math.max(0,game.condition-(game.production?(1.7+Math.random()*1.4):0.4));
    if(game.production&&Math.random()<0.08){
-     game.production=false;game.condition=Math.max(5,game.condition-12);
-     log('⚠️ תקלה בזרוע ההלחמה! ההרכבה נעצרה. נדרש טיפול.');
+     game.condition=Math.max(5,game.condition-12);
+     triggerLineBreakdown(Math.floor(Math.random()*game.lines));
    }
  }
  if(has('market')){
    game.demand=Math.max(1,Math.min(3,game.demand+(Math.random()<.5?(Math.random()<.5?-1:1):0)));
    updateComponentMarkets();
    const liveComponentFactor=Math.max(0.72,Math.min(1.42,game.componentMarketIndex/100));
-   const demandFactor=0.82+game.demand*0.10;
-   const coupling=(game.marketPrice||1100)*0.10 + Math.max(500,Math.round(componentCostIndex()))*0.08;
-   const noise=(Math.random()*0.18-0.09);
-   const target=920*liveComponentFactor*demandFactor + coupling*noise + 80*game.demand;
-   game.marketPrice=Math.max(700,Math.round(game.marketPrice*0.72+target*0.28));
+   const margin=1.18+game.demand*0.07+(Math.random()*0.08-0.04);
+   const target=STD_MAT_COST*liveComponentFactor*margin;
+   game.marketPrice=Math.max(Math.round(STD_MAT_COST*1.05),Math.round(game.marketPrice*0.72+target*0.28));
  }
  if(has('orders')){
    orders=orders.filter(o=>{
@@ -1154,7 +1205,7 @@ function closeDay(){
  if(has('workers')&&!game.strike&&game.workers>0){
    const riskFactor=Math.max(0.4,Math.min(2,DEFAULT_WAGE/game.wage));
    if(Math.random()<0.02*riskFactor){
-     game.strike=true;game.production=false;
+     game.strike=true;
      log('✊ הטכנאים שובתים ודורשים העלאת שכר. הקו לא יעבוד עד שתאשר העלאה.');
    }
  }
@@ -1176,24 +1227,26 @@ const workHour=()=>game.hour>=SHIFT_START&&game.hour<SHIFT_END;
 function brokenLineCount(){ return (game.lineIssues||[]).filter(Boolean).length; }
 function availableLineCount(){ return Math.max(0,game.lines-brokenLineCount()); }
 function lineCanRun(){ return availableLineCount()>0 && enoughWorkers(); }
-function productionRate(){ return workHour()?1:0.25; }
+function productionRate(){ return workHour()?1:0.75; }
 function produceHour(rate=1){
- const m=currentModel();
- const bom=m?.bom||defaultBom();
- const usableLines=availableLineCount();
- if(usableLines<=0||!enoughWorkers())return;
- game.productionBuffer=(game.productionBuffer||0)+usableLines*rate;
- while(game.productionBuffer>=PER_CYCLE){
-   if(stored()>=game.capacity){game.productionBuffer=0;break}
-   const lacking=has('materials')?COMPONENT_CATEGORIES.find(c=>(game.stock[bom[c.key]]||0)<c.per):null;
-   if(lacking){game.productionBuffer=0;break}
-   if(has('materials'))COMPONENT_CATEGORIES.forEach(c=>game.stock[bom[c.key]]-=c.per);
-   game.productionBuffer-=PER_CYCLE;
-   if(has('quality')&&Math.random()>game.quality/100){log('פסילה: רחפן אחד נכשל בבדיקת טיסה.');continue}
-   game.finished++; game.produced++;
-   game.finishedByModel[m.id]=(game.finishedByModel[m.id]||0)+1;
+ if(!enoughWorkers())return;
+ game.lineBuffers=Array.from({length:game.lines},(_,i)=>+(game.lineBuffers||[])[i]||0);
+ for(let i=0;i<game.lines;i++){
+   if(game.lineIssues[i])continue;
+   const m=lineModel(i), bom=m.bom;
+   game.lineBuffers[i]+=rate;
+   while(game.lineBuffers[i]>=PER_CYCLE){
+     if(stored()>=game.capacity){game.lineBuffers[i]=0;break}
+     const lacking=has('materials')?COMPONENT_CATEGORIES.find(c=>(game.stock[bom[c.key]]||0)<c.per):null;
+     if(lacking){game.lineBuffers[i]=0;break}
+     if(has('materials'))COMPONENT_CATEGORIES.forEach(c=>game.stock[bom[c.key]]-=c.per);
+     game.lineBuffers[i]-=PER_CYCLE;
+     if(has('quality')&&Math.random()>game.quality/100){log('פסילה: רחפן אחד נכשל בבדיקת טיסה.');continue}
+     game.produced++;
+     setModelFinished(m.id,modelFinished(m.id)+1);
+   }
  }
- if(has('breakdowns'))game.condition=Math.max(0,game.condition-0.4*usableLines*rate);
+ if(has('breakdowns'))game.condition=Math.max(0,game.condition-0.4*availableLineCount()*rate);
 }
 function repairNextLine(){
  if(!has('breakdowns'))return;
@@ -1214,11 +1267,6 @@ function triggerLineBreakdown(idx){
  game.lineIssues[idx]=true;
  log(`⚠️ תקלה בפס ${idx+1}! הפס מושבת עד שטכנאי יתקן אותו. ${workHour()?'יש צוות זמין כרגע.':'זה קרה בלילה — אין מי שיתקן עד הבוקר.'}`);
 }
-function componentCostIndex(){
- const bom=activeBom();
- const total=COMPONENT_CATEGORIES.reduce((s,c)=>s+variantCost(bom[c.key])*c.per,0);
- return total;
-}
 function updateComponentMarkets(){
  const ids=ALL_COMPONENTS.map(v=>v.id);
  const avg=ids.reduce((s,id)=>s+variantCost(id),0)/Math.max(1,ids.length);
@@ -1237,29 +1285,61 @@ function updateComponentMarkets(){
 }
 function tick(){
  checkStage();
- maybeShowModelShopIntro();
  if(game.paused)return;
  if(game.production){
    const r=blockedReason();
-   if(r){game.production=false;log('ההרכבה נעצרה: '+r);render();return}
-   if(lineCanRun())produceHour(productionRate());
+   if(r){
+     if(game.blockReason!==r){log('⏸️ ההרכבה מושהית: '+r);game.blockReason=r}
+   }else{
+     if(game.blockReason){log('▶️ החסימה הוסרה. ההרכבה ממשיכה.');game.blockReason=null}
+     if(lineCanRun())produceHour(productionRate());
+   }
  }
  if(game.dispatcher&&has('orders'))autoDispatch();
  if(game.procurement&&has('materials'))autoProcure();
  // בלילה עדיין מתקדמים ומייצרים בקצב 25%; תקלות יכולות לקרות ואז אין צוות לתקן.
  if(has('breakdowns')&&game.lines>0){
-   const p=workHour()?0.045:0.020;
+   const p=workHour()?0.020:0.008;
    for(let i=0;i<game.lines;i++){
      if(!game.lineIssues[i]&&Math.random()<p/game.lines)triggerLineBreakdown(i);
    }
  }
  game.hour++;
  if(game.hour>=24)game.hour=0;
- game.progress=(game.production&&lineCanRun())?Math.min(1,game.productionBuffer):0;
+ game.progress=(game.production&&lineCanRun())?Math.min(1,Math.max(...(game.lineBuffers||[0]),0)):0;
  if(game.hour===SHIFT_START){game.day++;closeDay()}
  render()
 }
 setInterval(tick,1000);
+if(location.search.includes('selftest')){
+ const a=(c,m)=>{if(!c)throw new Error(m)};
+ a(expressPlan(1).every(x=>x.qty===componentById(x.id).per),'הזמנה מהירה חייבת כמות לפי המפרט');
+ a(expressPlan()[0].qty===COMPONENT_CATEGORIES[0].per*EXPRESS_BUILDS,'הזמנה מהירה: כמות לפי EXPRESS_BUILDS');
+ const cheap=Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,c.variants[0].id]));
+ const rich=Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,c.variants[3].id]));
+ a(bomUnitCost(rich)>bomUnitCost(cheap),'דגם אקסטרים חייב לעלות יותר');
+ a(modelPriceEstimate({bom:rich})>modelPriceEstimate({bom:cheap}),'דגם אקסטרים חייב להימכר ביוקר');
+ a(modelPriceEstimate({bom:defaultBom()})>bomUnitCost(defaultBom()),'מחיר מכירה חייב לכסות את עלות הרכיבים');
+ const cheapM={id:'H2',bom:defaultBom()};
+ const before=game.cash; game.cash=3000; game.founderCredit=0;
+ a(orderCeiling(cheapM,6)<=Math.max(5,modelFinished('H2')+Math.floor(3000*1.6/modelMatCost(cheapM))),'הזמנה לא יכולה לחרוג ממה שאפשר לממן');
+ game.cash=1e9;
+ a(orderCeiling(cheapM,6)<=Math.max(5,modelFinished('H2')+dailyOutput()*5),'הזמנה לא יכולה לחרוג ממה שאפשר לייצר עד הדדליין');
+ game.cash=before;
+ game.capacity=0; a(blockedReason()==='המחסן מלא. שלח הזמנות או מכור מלאי כדי לפנות מקום.','מחסן מלא חייב לחסום ייצור'); game.capacity=900;
+ (()=>{
+  const before={...game.stock};
+  game.stage=11; game.lines=2; game.lineIssues=[false,false]; game.workers=6; game.quality=100;
+  game.models.T1={id:'T1',name:'T1',createdDay:1,bom:Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,c.variants[0].id])),status:'active',retireDay:null,clearanceUntil:null,sold:0};
+  COMPONENT_CATEGORIES.forEach(c=>{game.stock[c.variants[0].id]=(game.stock[c.variants[0].id]||0)+c.per*3});
+  game.lineModels=['H2','T1']; game.finishedByModel.T1=0; game.lineBuffers=[0,0];
+  const h0=modelFinished('H2'), t0=modelFinished('T1');
+  produceHour(1);
+  a(modelFinished('H2')>h0&&modelFinished('T1')>t0,'שני פסים חייבים לייצר שני דגמים במקביל');
+  delete game.models.T1; game.lines=1; game.lineModels=['H2']; game.stock=before;
+ })();
+ console.log('selftest ok');
+}
 function pauseGame(){game.paused=!game.paused;render()}
 buildPartsUI();buildTierUI();
 if(load()){
