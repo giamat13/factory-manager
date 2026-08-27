@@ -180,6 +180,10 @@ tr:hover td{background:#fafbfd}
         <button class="secondary" onclick="maintain()" data-req="breakdowns" id="maintBtn">כיול ותחזוקה — ₪1,100</button>
         <button class="amber" onclick="repairNextLine()" data-req="breakdowns" id="repairBtn">🛠️ אין פס תקול</button>
        </div>
+       <div class="row" data-req="breakdowns" style="margin-top:10px">
+        <div><b>טכנאי כיול ותחזוקה</b><div class="muted">עובד קבוע שמכייל ומתקן פסים לבד ברגע שצריך — ₪300 ליום</div></div>
+        <button id="maintWorkerBtn" onclick="toggleMaintWorker()">העסק — ₪300/יום</button>
+       </div>
       </div>
       <div class="box">
        <h3>מלאי רחפנים מוכנים</h3>
@@ -406,7 +410,7 @@ const freshGame=()=>({
  capacity:900, finished:0, finishedByModel:{H2:0}, progress:0, partsBought:0, workers:0, lines:1, condition:100,
  quality:92, production:false, produced:0, shipped:0, repairs:0, debt:0,
  demand:2, marketPrice:Math.round(STD_MAT_COST*1.35), stage:1, tutOpen:false,
- rep:55, adLevel:0, ordersWon:0, logs:[], dispatcher:false, procurement:false, wage:DEFAULT_WAGE, strike:false,
+ rep:55, adLevel:0, ordersWon:0, logs:[], dispatcher:false, procurement:false, maintWorker:false, wage:DEFAULT_WAGE, strike:false,
  lineIssues:[], lineModels:['H2'], lineBuffers:[0], componentMarketIndex:100, blockReason:null,
  componentPrices:Object.fromEntries(ALL_COMPONENTS.map(v=>[v.id,v.base])),
  activeModelId:'H2', modelCounter:2,
@@ -434,7 +438,7 @@ function seedStarterStock(g){
 
 // כמויות רכש נגזרות מהמפרט: כמה רחפנים הקנייה מספיקה להם, ולא מספר שרירותי
 const BUY_BUILDS=10, EXPRESS_BUILDS=20;
-const DISPATCHER_WAGE=250, PROCURE_WAGE=200;
+const DISPATCHER_WAGE=250, PROCURE_WAGE=200, MAINT_WAGE=300;
 const currentModel=()=>game.models[game.activeModelId];
 const modelFinished=id=>Math.floor(game.finishedByModel?.[id]||0);
 const setModelFinished=(id,n)=>{game.finishedByModel[id]=Math.max(0,Math.floor(n)); if(id===game.activeModelId)game.finished=game.finishedByModel[id];};
@@ -726,6 +730,8 @@ function render(){
  document.getElementById('dispatchBtn').className=game.dispatcher?'red':'';
  document.getElementById('procureBtn').textContent=game.procurement?'פטר':'העסק — '+money(PROCURE_WAGE)+'/יום';
  document.getElementById('procureBtn').className=game.procurement?'red':'';
+ document.getElementById('maintWorkerBtn').textContent=game.maintWorker?'פטר':'העסק — '+money(MAINT_WAGE)+'/יום';
+ document.getElementById('maintWorkerBtn').className=game.maintWorker?'red':'';
  document.getElementById('wageLine').textContent=money(game.wage);
  if(document.activeElement!==document.getElementById('wageInput'))document.getElementById('wageInput').value=game.wage;
  document.getElementById('strikeRow').hidden=!game.strike;
@@ -1102,6 +1108,15 @@ function toggleProcurement(){
  log(game.procurement?'📦 מנהל הרכש הועסק. מעכשיו הוא מזמין רכיבים לבד כשהם עומדים להיגמר.':'מנהל הרכש פוטר.');
  render();
 }
+function toggleMaintWorker(){
+ game.maintWorker=!game.maintWorker;
+ log(game.maintWorker?'🔧 טכנאי כיול ותחזוקה הועסק. מעכשיו הוא מכייל ומתקן פסים לבד כשצריך.':'טכנאי כיול ותחזוקה פוטר.');
+ render();
+}
+function autoMaintenance(){
+ if(needsCalibration()&&game.cash>=maintCost())maintain();
+ if(brokenLineCount()>0&&workHour()&&game.workers>=1&&!game.strike&&game.cash>=450)repairNextLine();
+}
 function autoProcure(){
  // צריכה לשעה מחושבת מכל הפסים יחד: שני פסים עם דגמים שונים מזמינים כל אחד את הרכיבים שלו
  const need={};
@@ -1157,6 +1172,7 @@ function closeDay(){
  if(has('workers'))exp+=game.workers*game.wage;
  if(game.dispatcher)exp+=DISPATCHER_WAGE;
  if(game.procurement)exp+=PROCURE_WAGE;
+ if(game.maintWorker)exp+=MAINT_WAGE;
  if(has('expenses'))exp+=(game.production?260*game.lines:90)+400+120*game.lines;
  if(has('bank')&&game.debt>0){
    game.debt+=game.debt*0.0015;
@@ -1302,6 +1318,7 @@ function tick(){
  }
  if(game.dispatcher&&has('orders'))autoDispatch();
  if(game.procurement&&has('materials'))autoProcure();
+ if(game.maintWorker&&has('breakdowns'))autoMaintenance();
  // בלילה עדיין מתקדמים ומייצרים בקצב 25%; תקלות יכולות לקרות ואז אין צוות לתקן.
  if(has('breakdowns')&&game.lines>0){
    const p=workHour()?0.012:0.005;
