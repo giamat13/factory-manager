@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Factory Manager — מפעל רחפנים</title>
+<style>
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:#e9edf2;color:#18212b;font-family:Arial,Helvetica,sans-serif}
+.top{background:#1d2835;color:#fff;padding:18px 24px;box-shadow:0 2px 8px #0002}
+.topin{max-width:1350px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:15px}
+h1{margin:0;font-size:27px}.muted{color:#8190a0;font-size:13px}
+.top .muted{color:#bac6d2}
+.wrap{max-width:1350px;margin:18px auto;padding:0 15px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:15px}
+.kpi{background:#fff;border:1px solid #d8dee6;border-radius:10px;padding:12px}
+.kpi .label{font-size:12px;color:#6d7986}.kpi .val{font-size:21px;font-weight:700;margin-top:5px}
+.layout{display:grid;grid-template-columns:1.55fr .95fr;gap:15px}
+.panel{background:#fff;border:1px solid #d8dee6;border-radius:12px;padding:16px;margin-bottom:15px}
+.panel h2{font-size:18px;margin:0 0 12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.card{border:1px solid #dbe1e8;border-radius:10px;padding:12px;background:#fbfcfd}
+.card h3{font-size:15px;margin:0 0 7px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #edf0f3}
+.row:last-child{border-bottom:0}
+button,select{font:inherit}
+button{border:0;border-radius:7px;background:#246bce;color:#fff;padding:9px 12px;font-weight:700;cursor:pointer}
+button:hover{filter:brightness(1.05)}button:disabled{opacity:.45;cursor:not-allowed}
+.secondary{background:#e9eef5;color:#26384d}.green{background:#1b8e55}.red{background:#c83d3d}.amber{background:#d88a18}
+input,select{border:1px solid #cbd4de;border-radius:7px;padding:8px;background:#fff}
+.pbar{height:9px;background:#e7ebef;border-radius:99px;overflow:hidden;margin:7px 0}
+.fill{height:100%;background:#246bce}.fill.green{background:#1b8e55}.fill.red{background:#c83d3d}.fill.amber{background:#d88a18}
+.machine{display:grid;grid-template-columns:1.15fr .85fr;gap:10px}
+.machine .box{border:1px solid #dbe1e8;border-radius:10px;padding:12px}
+.badge{display:inline-block;padding:3px 7px;border-radius:12px;font-size:11px;background:#e9eef5;margin-right:4px}
+.badge.ok{background:#dff3e8;color:#14663c}.badge.warn{background:#fff0d2;color:#7c5409}.badge.bad{background:#f9dfdf;color:#8f2525}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:right;padding:8px;border-bottom:1px solid #e6e9ed}th{color:#6a7682}
+.log{height:250px;overflow:auto;background:#f7f9fb;border:1px solid #dbe1e8;border-radius:8px;padding:9px}
+.log p{margin:0;padding:7px 3px;border-bottom:1px solid #e8edf2;font-size:12px}
+.controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.notice{background:#eef5ff;border:1px solid #cfe1fb;padding:10px;border-radius:8px;font-size:13px;margin-bottom:10px}
+.finance{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.metric{background:#f7f9fb;border:1px solid #e2e7ec;border-radius:8px;padding:10px}
+.good{color:#167242}.badtext{color:#b12e2e}
+/* tutorial */
+.taskbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff7e6;border:1px solid #f0d9a8;border-radius:10px;padding:11px 14px;margin-bottom:15px;font-size:14px}
+.taskbar b{font-size:15px}
+.taskbar .step{color:#8a6a1e;font-size:12px}
+.modal{position:fixed;inset:0;background:#0b131cc9;display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+.modalbox{background:#fff;border-radius:14px;padding:22px;max-width:460px;width:100%;box-shadow:0 18px 50px #0005}
+.modalbox .step{color:#6d7986;font-size:12px;letter-spacing:.5px}
+.modalbox h2{margin:6px 0 10px;font-size:22px}
+.modalbox p{margin:0 0 14px;font-size:14px;line-height:1.65;color:#3a4653}
+.task{background:#eef5ff;border:1px solid #cfe1fb;border-radius:8px;padding:10px;font-size:14px;font-weight:700;margin-bottom:16px}
+@media(max-width:1050px){.layout{grid-template-columns:1fr}}
+@media(max-width:650px){.grid3,.machine{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="top">
+ <div class="topin">
+  <div><h1>🛸 Factory Manager</h1><div class="muted">מפעל להרכבת רחפני צילום</div></div>
+  <div class="controls">
+   <button class="secondary" onclick="pauseGame()" id="pauseBtn">השהה</button>
+   <button class="secondary" onclick="newDay()">דלג יום</button>
+   <button class="secondary" onclick="skipTutorial()" id="skipBtn">דלג על ההדרכה</button>
+   <button class="secondary" onclick="resetGame()">משחק חדש</button>
+  </div>
+ </div>
+</div>
+
+<div class="wrap">
+ <div class="taskbar" id="taskbar">
+  <div><div class="step" id="taskStep"></div><b id="taskText"></b></div>
+  <div><b id="taskProg"></b></div>
+ </div>
+
+ <div class="kpis">
+  <div class="kpi"><div class="label">מזומן</div><div class="val" id="cash">₪50,000</div></div>
+  <div class="kpi"><div class="label">יום במשחק</div><div class="val" id="day">1</div></div>
+  <div class="kpi" data-req="sales"><div class="label">הכנסות החודש</div><div class="val" id="revenue">₪0</div></div>
+  <div class="kpi" data-req="expenses"><div class="label">הוצאות החודש</div><div class="val" id="expenses">₪0</div></div>
+  <div class="kpi" data-req="expenses"><div class="label">רווח החודש</div><div class="val" id="profit">₪0</div></div>
+  <div class="kpi" data-req="breakdowns"><div class="label">יעילות</div><div class="val" id="eff">100%</div></div>
+ </div>
+
+ <div class="layout">
+  <main>
+   <div class="panel">
+    <h2>🛸 מצב הייצור</h2>
+    <div class="notice" id="statusNotice">המפעל מושבת כרגע. הפעל קו ייצור כדי להתחיל.</div>
+    <div class="machine">
+      <div class="box">
+       <h3>קו הרכבה וכיול</h3>
+       <div class="muted">חיתוך שלדת פחמן, הלחמה ובדיקת טיסה</div>
+       <p><span class="badge ok" id="machineStatus">כבוי</span><span class="badge" id="condition" data-req="breakdowns">מצב 100%</span></p>
+       <div class="row"><span>תפוקה</span><b id="capacityLine">15 רחפנים ליום</b></div>
+       <div class="row" data-req="expansion"><span>קווי הרכבה</span><b id="machines">1</b></div>
+       <div class="row" data-req="workers"><span>טכנאים נדרשים</span><b id="needWorkers">3</b></div>
+       <div class="row" data-req="expenses"><span>חשמל</span><b id="elecLine">₪260 ליום עבודה</b></div>
+       <div class="row" data-req="expenses"><span>תחזוקה חודשית</span><b id="maintLine">₪3,600</b></div>
+       <div class="controls" style="margin-top:10px">
+        <button onclick="toggleProduction()" id="prodBtn">הפעל ייצור</button>
+        <button class="secondary" onclick="maintain()" data-req="breakdowns">כיול ותחזוקה — ₪1,100</button>
+       </div>
+      </div>
+      <div class="box">
+       <h3>רחפן צילום דגם H2</h3>
+       <div class="muted">שלדת פחמן, 4 מנועים, מצלמה 4K</div>
+       <div class="row"><span><b>מלאי רחפנים מוכנים</b><div class="muted">זה המספר שנבדק מול הזמנות</div></span><b id="finished" style="font-size:20px">0</b></div>
+       <div class="pbar"><div class="fill" id="prodBar" style="width:0%"></div></div>
+       <div class="row"><span>הורכבו מאז היום הראשון</span><b id="batchDone">0</b></div>
+       <div class="row" data-req="materials"><span>ערכות מנועים</span><b id="raw">0</b></div>
+       <div class="row" data-req="materials"><span>סוללות ובקרי טיסה</span><b id="packs">0</b></div>
+       <div class="row" data-req="materials"><span>נפח מחסן</span><b id="cap">0/300</b></div>
+      </div>
+    </div>
+   </div>
+
+   <div class="panel" data-req="materials">
+    <h2>📦 רכש רכיבים</h2>
+    <div class="notice">כל רחפן צורך ערכת מנועים אחת וסוללה עם בקר טיסה. הרכיבים תופסים מקום במחסן.</div>
+    <div class="grid3">
+     <div class="card">
+      <h3>ערכת מנועים ומדחפים</h3>
+      <div class="muted">4 מנועי brushless + מדחפים</div>
+      <p><b id="motorPrice">₪300</b> לערכה</p>
+      <div class="controls"><input id="motorQty" type="number" min="10" step="10" value="50" style="width:90px"><button onclick="buyMotors()">קנה</button></div>
+     </div>
+     <div class="card">
+      <h3>סוללה ובקר טיסה</h3>
+      <div class="muted">ליתיום 5000mAh + בקר GPS</div>
+      <p><b>₪480</b> לערכה</p>
+      <div class="controls"><input id="batteryQty" type="number" min="10" step="10" value="50" style="width:90px"><button onclick="buyBatteries()">קנה</button></div>
+     </div>
+     <div class="card" data-req="events">
+      <h3>ספק אמין</h3>
+      <div class="muted">משלוח אוויר, אספקה מיידית</div>
+      <p>40 ערכות מנועים + 40 סוללות</p>
+      <button class="secondary" onclick="expressOrder()">הזמנה מהירה — ₪36,000</button>
+     </div>
+    </div>
+   </div>
+
+   <div class="panel" data-req="workers">
+    <h2>👷 טכנאים</h2>
+    <div class="row"><div><b>טכנאי הרכבה</b><div class="muted">שכר ₪480 ליום לטכנאי</div></div><div class="controls"><b id="workers">2</b><button onclick="hire()">גייס טכנאי — ₪2,500</button><button class="secondary" onclick="fire()">פטר</button></div></div>
+    <div class="row" data-req="quality"><div><b>אחוז מעבר בבדיקת טיסה</b><div class="muted">טכנאים מוסמכים = פחות רחפנים פסולים</div></div><div class="controls"><b id="quality">92%</b><button class="secondary" onclick="train()">הסמכת כיול — ₪3,500</button></div></div>
+    <div class="pbar" data-req="quality"><div class="fill green" id="qualBar" style="width:92%"></div></div>
+   </div>
+
+   <div class="panel" data-req="orders">
+    <h2>🛒 הזמנות לקוחות</h2>
+    <div class="notice">במלאי כרגע: <b id="stockHint">0</b> רחפנים מוכנים. שולחים הזמנה רק כשכל הכמות נמצאת במלאי, אין משלוחים חלקיים, ולכן הכפתור מראה כמה רחפנים עוד חסרים.</div>
+    <table><thead><tr><th>לקוח</th><th>רחפנים</th><th>מחיר ליח׳</th><th>סה״כ</th><th>דדליין</th><th></th></tr></thead>
+    <tbody id="orders"></tbody></table>
+    <div class="muted" id="ordersEmpty" style="padding-top:8px">אין כרגע הזמנות פתוחות.</div>
+   </div>
+
+   <div class="panel" data-req="expansion">
+    <h2>🏗️ התרחבות</h2>
+    <div class="row"><div><b>קו הרכבה נוסף</b><div class="muted">+15 רחפנים ליום, דורש 3 טכנאים נוספים</div></div><button onclick="buyMachine()">קנה — ₪45,000</button></div>
+    <div class="row"><div><b>הרחבת מחסן</b><div class="muted">+200 יחידות נפח אחסון</div></div><button onclick="buyWarehouse()">הרחב — ₪12,000</button></div>
+    <div class="row"><span>הובלה מבוטחת ללקוח</span><b>₪25 לרחפן</b></div>
+   </div>
+  </main>
+
+  <aside>
+   <div class="panel" data-req="sales">
+    <h2>💰 כספים</h2>
+    <div class="finance">
+     <div class="metric" data-req="expenses"><div class="muted">חשמל ליום</div><b id="elecCost">₪260</b></div>
+     <div class="metric" data-req="workers"><div class="muted">שכר ליום</div><b id="wageCost">₪960</b></div>
+     <div class="metric" data-req="materials"><div class="muted">עלות רכיבים לרחפן</div><b id="matCost">₪780</b></div>
+     <div class="metric" data-req="sales"><div class="muted">מחיר מכירה ממוצע</div><b id="avgPrice">₪1,100</b></div>
+    </div>
+   </div>
+
+   <div class="panel" data-req="bank">
+    <h2>🏦 הבנק</h2>
+    <div class="row"><span>חוב כולל</span><b id="debt">₪0</b></div>
+    <div class="row"><span>תשלום יומי</span><b id="dailyPay">₪0</b></div>
+    <div class="row"><span>ריבית יומית</span><b>0.15%</b></div>
+    <div class="controls" style="margin-top:10px">
+     <button onclick="loan(20000)">הלוואה ₪20,000</button>
+     <button onclick="loan(50000)">הלוואה ₪50,000</button>
+     <button class="secondary" onclick="repay(10000)">החזר ₪10,000</button>
+    </div>
+   </div>
+
+   <div class="panel" data-req="market">
+    <h2>📈 שוק</h2>
+    <div class="row"><span>ביקוש לרחפנים</span><b id="demand">גבוה</b></div>
+    <div class="row"><span>מחיר שוק לרחפן</span><b id="marketPrice">₪1,100</b></div>
+    <div class="row" data-req="materials"><span>מחיר ערכת מנועים</span><b id="marketMotor">₪300</b></div>
+    <div class="muted">מחירי הרכיבים מושפעים מהיבוא. הזמנות ישירות נותנות מחיר קבוע.</div>
+   </div>
+
+   <div class="panel">
+    <h2>⚠️ אירועים</h2>
+    <div class="log" id="log"></div>
+   </div>
+  </aside>
+ </div>
+</div>
+
+<div class="modal" id="tut" hidden>
+ <div class="modalbox">
+  <div class="step" id="tutStep"></div>
+  <h2 id="tutTitle"></h2>
+  <p id="tutBody"></p>
+  <div class="task" id="tutTask"></div>
+  <button onclick="closeTut()">הבנתי, קדימה</button>
+ </div>
+</div>
+
+<script>
+// ── המוצר: רחפן צילום דגם H2. כל רחפן = ערכת מנועים אחת + סוללה/בקר אחד. ──
+const BATTERY_PRICE=480, PER_CYCLE=2, SHIP_PER_UNIT=25, WAGE=480, PER_LINE=3;
+
+let game={
+ day:1, paused:false, cash:50000, monthRevenue:0, monthExpenses:0, dayRevenue:0, dayExpenses:0,
+ motors:0, batteries:0, capacity:300, finished:0, progress:0, workers:0, lines:1, condition:100,
+ quality:92, production:false, produced:0, shipped:0, motorsBought:0, repairs:0, debt:0,
+ demand:2, marketPrice:1100, motorPrice:300, stage:1, tutOpen:false
+};
+let orders=[], nextId=1;
+
+// ── שלבי ההדרכה ──────────────────────────────────────────────
+// כל פיצ'ר נפתח בשלב שלו; has() שולט גם ב-UI (data-req) וגם בסימולציה.
+const UNLOCK={sales:2,orders:2,market:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,events:10};
+const has=f=>game.stage>=UNLOCK[f];
+
+const STAGES=[null,
+ {t:'המפעל הראשון שלך',
+  b:'זה קו ההרכבה שלך, והוא מרכיב מוצר אחד: רחפן צילום דגם H2. לחץ "הפעל ייצור" והוא יתחיל לעבוד. בשלב הזה אין טכנאים, אין חשמל ואין תחזוקה, רק הרכבה.',
+  task:'הרכב 10 רחפנים', prog:()=>game.produced+'/10', done:()=>game.produced>=10},
+
+ {t:'הלקוח הראשון',
+  b:'נפתחו הזמנות לקוחות. לכל הזמנה יש כמות, מחיר לרחפן ודדליין, היום האחרון שאפשר לשלוח בו. חשוב: שולחים רק כשכל הכמות נמצאת במלאי, ואחרי הדדליין ההזמנה מתבטלת בקנס.',
+  task:'שלח 20 רחפנים ללקוחות', prog:()=>game.shipped+'/20', done:()=>game.shipped>=20,
+  on:()=>{orders.push({id:nextId++,client:'סקיי-ויז׳ן הפקות',qty:20,price:1180,deadline:game.day+8});log('📞 לקוח ראשון: סקיי-ויז׳ן מזמינים 20 רחפנים.')}},
+
+ {t:'צריך רכיבים',
+  b:'מעכשיו כל רחפן צורך ערכת מנועים אחת וסוללה עם בקר טיסה. אלה הרכיבים היקרים במוצר, ואם המלאי נגמר הקו נעצר באמצע ההרכבה.',
+  task:'קנה 50 ערכות מנועים', prog:()=>Math.min(50,game.motorsBought)+'/50', done:()=>game.motorsBought>=50,
+  on:()=>{game.motors=30;game.batteries=30;log('📦 נשאר במחסן מלאי התחלתי: 30 ערכות מנועים ו-30 סוללות.')}},
+
+ {t:'אי אפשר לעשות הכול לבד',
+  b:'קו ההרכבה דורש 3 טכנאים: הלחמה, הרכבה ובדיקת טיסה. יש לך רק שניים. כל טכנאי עולה ₪480 ליום, גם בימים שבהם הקו מושבת.',
+  task:'גייס טכנאי שלישי', prog:()=>game.workers+'/3', done:()=>game.workers>=3,
+  on:()=>{game.workers=2;log('👷 יש לך שני טכנאים. הקו צריך שלושה.')}},
+
+ {t:'הוצאות',
+  b:'חשמל, תחזוקה קבועה והוצאות משרד יורדות מהמזומן בכל יום. מעכשיו הרווח הוא מה שנשאר אחרי ההוצאות, לא מה שנכנס מהמכירות.',
+  task:'סיים יום עם רווח חיובי', prog:()=>money(game.dayRevenue-game.dayExpenses), done:()=>false},
+
+ {t:'בעיות אמיתיות',
+  b:'ציוד ההרכבה יוצא מכיול. ככל שהמצב יורד כך גדל הסיכון לתקלה שמשביתה את הקו באמצע יום עבודה. כיול ותחזוקה מחזירים את הקו לכשירות.',
+  task:'בצע כיול ותחזוקה לקו', prog:()=>game.repairs+'/1', done:()=>game.repairs>=1},
+
+ {t:'איכות',
+  b:'כל רחפן עובר בדיקת טיסה, ורחפן שנכשל הולך לפירוק אחרי שכבר שילמת על הרכיבים. טכנאים מוסמכים מעלים את אחוז המעבר, ולקוחות עלולים לדחות משלוח לא יציב ולשלם רק חלק מהסכום.',
+  task:'הגע ל-96% מעבר בבדיקה', prog:()=>game.quality+'%/96%', done:()=>game.quality>=96},
+
+ {t:'הבנק',
+  b:'אפשר לקחת הלוואה כדי להתרחב. הכסף נכנס מיד, אבל נוצר חוב שנצברת עליו ריבית יומית והתשלום יורד מהמזומן כל יום.',
+  task:'קח הלוואה מהבנק', prog:()=>money(game.debt), done:()=>game.debt>0},
+
+ {t:'התרחבות',
+  b:'עכשיו אפשר לקנות קו הרכבה נוסף, להגדיל את המחסן ולקבל חוזים של מאות רחפנים. כל קו מוסיף 15 רחפנים ליום אבל דורש 3 טכנאים, ומכל הזמנה יורדת עלות הובלה מבוטחת.',
+  task:'קנה קו הרכבה שני', prog:()=>game.lines+'/2', done:()=>game.lines>=2},
+
+ {t:'אתה כבר מנהל אמיתי',
+  b:'ההדרכה נגמרה. כל המערכות פתוחות: שוק משתנה, ספקים, אירועים אקראיים, הלוואות גדולות והשקעות. מכאן ההחלטות שלך.',
+  task:'', prog:()=>'', done:()=>false}
+];
+
+const money=n=>'₪'+Math.round(n).toLocaleString('he-IL');
+function log(t){let e=document.getElementById('log'),p=document.createElement('p');p.textContent=`יום ${game.day}: ${t}`;e.prepend(p);while(e.children.length>24)e.lastChild.remove();}
+
+function showTut(){
+ const s=STAGES[game.stage];
+ document.getElementById('tutStep').textContent=`שלב ${game.stage} מתוך 10`;
+ document.getElementById('tutTitle').textContent=s.t;
+ document.getElementById('tutBody').textContent=s.b;
+ const task=document.getElementById('tutTask');
+ task.hidden=!s.task; task.textContent='🎯 משימה: '+s.task;
+ document.getElementById('tut').hidden=false;
+ game.paused=true;game.tutOpen=true;save();
+}
+function closeTut(){document.getElementById('tut').hidden=true;game.paused=false;game.tutOpen=false;render()}
+function advance(){
+ game.stage++;
+ const s=STAGES[game.stage];
+ if(s.on)s.on();
+ showTut();render();
+}
+function checkStage(){
+ const s=STAGES[game.stage];
+ if(s&&s.done&&s.done()&&document.getElementById('tut').hidden)advance();
+}
+function skipTutorial(){
+ while(game.stage<10){const s=STAGES[game.stage+1];game.stage++;if(s.on)s.on();}
+ document.getElementById('tut').hidden=true;game.paused=false;
+ log('⏭️ ההדרכה דולגה. כל המערכות פתוחות.');render();
+}
+
+function renderTask(){
+ const s=STAGES[game.stage];
+ document.getElementById('taskbar').hidden=!s.task;
+ if(!s.task)return;
+ document.getElementById('taskStep').textContent=`שלב ${game.stage} מתוך 10 — ${s.t}`;
+ document.getElementById('taskText').textContent='🎯 '+s.task;
+ document.getElementById('taskProg').textContent=s.prog();
+}
+function renderOrders(){
+ let e=document.getElementById('orders');
+ e.innerHTML=orders.map(o=>{
+  let missing=o.qty-Math.floor(game.finished);
+  let btn=missing>0
+   ?`<button class="green" disabled title="צריך ${o.qty} רחפנים במלאי כדי לשלוח">חסרים ${missing}</button>`
+   :`<button class="green" onclick="ship(${o.id})">שלח</button>`;
+  return `<tr><td>${o.client}</td><td>${o.qty}</td><td>${money(o.price)}</td><td>${money(o.qty*o.price)}</td><td>יום ${o.deadline} (עוד ${o.deadline-game.day})</td><td>${btn}</td></tr>`;
+ }).join('');
+ document.getElementById('stockHint').textContent=Math.floor(game.finished);
+ document.getElementById('ordersEmpty').hidden=orders.length>0;
+}
+function render(){
+ document.querySelectorAll('[data-req]').forEach(el=>el.hidden=!has(el.dataset.req));
+ document.getElementById('skipBtn').hidden=game.stage>=10;
+ document.getElementById('cash').textContent=money(game.cash);
+ document.getElementById('day').textContent=game.day;
+ document.getElementById('revenue').textContent=money(game.monthRevenue);
+ document.getElementById('expenses').textContent=money(game.monthExpenses);
+ document.getElementById('profit').textContent=money(game.monthRevenue-game.monthExpenses);
+ document.getElementById('eff').textContent=Math.round(game.condition*0.5+game.quality*0.3+(enoughWorkers()?20:0))+'%';
+ document.getElementById('workers').textContent=game.workers;
+ document.getElementById('needWorkers').textContent=game.lines*PER_LINE;
+ document.getElementById('machines').textContent=game.lines;
+ document.getElementById('capacityLine').textContent=(15*game.lines)+' רחפנים ליום';
+ document.getElementById('elecLine').textContent=money(260*game.lines)+' ליום עבודה';
+ document.getElementById('maintLine').textContent=money(3600*game.lines);
+ document.getElementById('wageCost').textContent=money(game.workers*WAGE);
+ document.getElementById('elecCost').textContent=money(game.production?260*game.lines:90);
+ document.getElementById('matCost').textContent=money(game.motorPrice+BATTERY_PRICE);
+ document.getElementById('avgPrice').textContent=money(game.marketPrice);
+ document.getElementById('quality').textContent=game.quality+'%';
+ document.getElementById('qualBar').style.width=game.quality+'%';
+ document.getElementById('raw').textContent=Math.floor(game.motors);
+ document.getElementById('packs').textContent=Math.floor(game.batteries);
+ document.getElementById('cap').textContent=Math.floor(stored())+'/'+game.capacity;
+ document.getElementById('batchDone').textContent=game.produced;
+ document.getElementById('finished').textContent=Math.floor(game.finished);
+ document.getElementById('condition').textContent='מצב '+Math.round(game.condition)+'%';
+ document.getElementById('condition').className='badge '+(game.condition>60?'ok':game.condition>25?'warn':'bad');
+ document.getElementById('motorPrice').textContent=money(game.motorPrice);
+ document.getElementById('marketMotor').textContent=money(game.motorPrice);
+ document.getElementById('marketPrice').textContent=money(game.marketPrice);
+ document.getElementById('demand').textContent=['נמוך','בינוני','גבוה'][game.demand-1];
+ document.getElementById('debt').textContent=money(game.debt);
+ document.getElementById('dailyPay').textContent=money(game.debt>0?Math.max(200,game.debt*0.02):0);
+ document.getElementById('machineStatus').textContent=game.production?'פועל':'כבוי';
+ document.getElementById('machineStatus').className='badge '+(game.production?'ok':'warn');
+ document.getElementById('prodBtn').textContent=game.production?'עצור ייצור':'הפעל ייצור';
+ document.getElementById('statusNotice').textContent=game.production?'הקו פועל. רחפנים שעברו בדיקת טיסה נכנסים למחסן.':'המפעל מושבת כרגע. הפעל קו ייצור כדי להתחיל.';
+ document.getElementById('prodBar').style.width=(game.progress*100)+'%';
+ document.getElementById('pauseBtn').textContent=game.paused?'המשך':'השהה';
+ renderOrders();renderTask();save();
+}
+
+// ── שמירת התקדמות ברענון ──
+const SAVE_KEY='factory-manager-save';
+function save(){try{localStorage.setItem(SAVE_KEY,JSON.stringify({game,orders,nextId}))}catch(e){}}
+function load(){
+ try{
+  const d=JSON.parse(localStorage.getItem(SAVE_KEY)||'null');
+  if(!d||!d.game)return false;
+  Object.assign(game,d.game);          // שדות חדשים שומרים על ברירת המחדל
+  orders=d.orders||[]; nextId=d.nextId||orders.length+1;
+  game.paused=false;
+  return true;
+ }catch(e){return false}
+}
+function resetGame(){
+ if(!confirm('להתחיל משחק חדש? ההתקדמות הנוכחית תימחק.'))return;
+ try{localStorage.removeItem(SAVE_KEY)}catch(e){}
+ location.reload();
+}
+function changeFin(rev,cost){
+ game.cash+=rev-cost;
+ game.monthRevenue+=rev;game.monthExpenses+=cost;
+ game.dayRevenue+=rev;game.dayExpenses+=cost;
+}
+const enoughWorkers=()=>!has('workers')||game.workers>=game.lines*PER_LINE;
+const stored=()=>game.motors+game.batteries+game.finished;
+
+function blockedReason(){
+ if(!enoughWorkers())return 'אין מספיק טכנאים להפעלת הקווים.';
+ if(has('materials')&&(game.motors<1||game.batteries<1))return 'נגמרו ערכות המנועים או הסוללות.';
+ if(has('breakdowns')&&game.condition<20)return 'הקו יצא מכיול לגמרי. בצע תחזוקה לפני הפעלה.';
+ if(game.finished>=game.capacity)return 'המחסן מלא. שלח הזמנות כדי לפנות מקום.';
+ return null;
+}
+function toggleProduction(){
+ if(game.production){game.production=false;log('קו ההרכבה נעצר.');render();return}
+ const r=blockedReason(); if(r){log(r);render();return}
+ game.production=true;log('קו ההרכבה הופעל.');render()
+}
+function maintain(){
+ if(game.cash<1100){log('אין מספיק מזומן לתחזוקה.');return}
+ changeFin(0,1100);game.condition=Math.min(100,game.condition+35);game.repairs++;
+ log('🔧 בוצע כיול ותחזוקה. מצב הקו עלה.');render()
+}
+function buyMotors(){
+ let q=Math.max(10,Math.floor(+document.getElementById('motorQty').value||0)),cost=q*game.motorPrice+400;
+ if(game.cash<cost){log('אין מספיק מזומן לרכישת ערכות מנועים.');return}
+ if(stored()+q>game.capacity){log('אין מספיק מקום במחסן.');return}
+ changeFin(0,cost);game.motors+=q;game.motorsBought+=q;
+ log(`נרכשו ${q} ערכות מנועים בעלות ${money(cost)} כולל שילוח.`);render()
+}
+function buyBatteries(){
+ let q=Math.max(10,Math.floor(+document.getElementById('batteryQty').value||0)),cost=q*BATTERY_PRICE+400;
+ if(game.cash<cost){log('אין מספיק מזומן לרכישת סוללות.');return}
+ if(stored()+q>game.capacity){log('אין מספיק מקום במחסן.');return}
+ changeFin(0,cost);game.batteries+=q;log(`נרכשו ${q} סוללות עם בקרי טיסה.`);render()
+}
+function expressOrder(){
+ if(game.cash<36000){log('אין מספיק כסף להזמנה מהירה.');return}
+ if(stored()+80>game.capacity){log('אין מספיק מקום במחסן למשלוח כזה.');return}
+ changeFin(0,36000);game.motors+=40;game.batteries+=40;log('✈️ נחת משלוח אוויר: 40 ערכות מנועים ו-40 סוללות.');render()
+}
+function hire(){
+ if(game.cash<2500){log('אין מספיק מזומן לגיוס.');return}
+ changeFin(0,2500);game.workers++;game.quality=Math.min(99,game.quality+1);log('👷 טכנאי חדש גויס.');render()
+}
+function fire(){
+ if(game.workers<=0){log('אין טכנאים לפטר.');return}
+ game.workers--;game.quality=Math.max(80,game.quality-1);log('טכנאי פוטר.');
+ if(!enoughWorkers()&&game.production){game.production=false;log('⚠️ הקו נעצר, אין מספיק טכנאים.')}
+ render()
+}
+function train(){
+ if(game.cash<3500){log('אין מספיק מזומן להסמכה.');return}
+ changeFin(0,3500);game.quality=Math.min(99,game.quality+2);log('🎓 הטכנאים עברו הסמכת כיול. אחוז המעבר עלה.');render()
+}
+function loan(sum){
+ if(game.debt+sum>200000){log('הבנק לא מאשר חוב גבוה מ-₪200,000.');return}
+ game.cash+=sum;game.debt+=sum;log(`🏦 התקבלה הלוואה של ${money(sum)}. החוב הכולל: ${money(game.debt)}.`);render()
+}
+function repay(sum){
+ sum=Math.min(sum,game.debt);
+ if(sum<=0){log('אין חוב לפירעון.');return}
+ if(game.cash<sum){log('אין מספיק מזומן להחזר.');return}
+ changeFin(0,sum);game.debt-=sum;log(`הוחזרו ${money(sum)} לבנק.`);render()
+}
+function buyMachine(){
+ if(game.cash<45000){log('אין מספיק מזומן לקו הרכבה נוסף.');return}
+ changeFin(0,45000);game.lines++;log(`🏗️ נרכש קו הרכבה נוסף. סה״כ ${game.lines} קווים, דרושים ${game.lines*PER_LINE} טכנאים.`);
+ if(!enoughWorkers()&&game.production){game.production=false;log('⚠️ הייצור נעצר, אין מספיק טכנאים לכל הקווים.')}
+ render()
+}
+function buyWarehouse(){
+ if(game.cash<12000){log('אין מספיק מזומן להרחבת המחסן.');return}
+ changeFin(0,12000);game.capacity+=200;log(`📦 המחסן הורחב ל-${game.capacity} יחידות.`);render()
+}
+function ship(id){
+ let o=orders.find(x=>x.id===id); if(!o||game.finished<o.qty)return;
+ let pay=o.qty*o.price;
+ if(has('quality')&&game.quality<88&&Math.random()<0.35){
+   pay*=0.7;log(`⚠️ ${o.client} החזירו רחפנים שנפלו בבדיקה אצלם. שולמו 70% בלבד.`);
+ }
+ let shipCost=has('expansion')?o.qty*SHIP_PER_UNIT:0;
+ game.finished-=o.qty;game.shipped+=o.qty;
+ changeFin(pay,shipCost);
+ orders=orders.filter(x=>x.id!==id);
+ log(`✅ ${o.qty} רחפנים נשלחו ל${o.client} תמורת ${money(pay)}.`);render()
+}
+const CLIENTS=['סקיי-ויז׳ן הפקות','אגרו-דרון','מיפוי ישראל בע״מ','נדל״ן מהאוויר','טכנודרון ייבוא','עיריית חיפה — פיקוח'];
+function genOrder(){
+ let big=has('expansion');
+ // חוזה גדול מהמחסן לא ניתן למילוי לעולם, ולכן נחתך לפי הנפח
+ let qty=Math.min(game.capacity,big?60+Math.floor(Math.random()*90):15+Math.floor(Math.random()*25));
+ let price=Math.round(game.marketPrice*(0.95+Math.random()*0.18));
+ orders.push({id:nextId++,client:CLIENTS[Math.floor(Math.random()*CLIENTS.length)],qty,price,deadline:game.day+4+Math.floor(Math.random()*6)});
+ log(`📞 הזמנה חדשה: ${qty} רחפנים ב-${money(price)} ליחידה.`);
+}
+function newDay(){
+ // ── סגירת יום: קודם ההוצאות של היום שנגמר, אחר כך בדיקת רווח ──
+ let exp=0;
+ if(has('workers'))exp+=game.workers*WAGE;
+ if(has('expenses'))exp+=(game.production?260*game.lines:90)+400+120*game.lines;
+ if(has('bank')&&game.debt>0){
+   game.debt+=game.debt*0.0015;
+   let pay=Math.min(game.debt,Math.max(200,game.debt*0.02));
+   game.debt-=pay;exp+=pay;
+ }
+ if(exp)changeFin(0,exp);
+
+ if(game.stage===5&&game.dayRevenue>game.dayExpenses&&game.dayRevenue>0){
+   log(`📗 סיימת את היום ברווח של ${money(game.dayRevenue-game.dayExpenses)}.`);
+   game.dayRevenue=0;game.dayExpenses=0;advance();return;
+ }
+ game.dayRevenue=0;game.dayExpenses=0;
+
+ if(has('breakdowns')){
+   game.condition=Math.max(0,game.condition-(game.production?(1.7+Math.random()*1.4):0.4));
+   if(game.production&&Math.random()<0.08){
+     game.production=false;game.condition=Math.max(5,game.condition-12);
+     log('⚠️ תקלה בזרוע ההלחמה! ההרכבה נעצרה. נדרש טיפול.');
+   }
+ }
+ if(has('market')){
+   game.demand=Math.max(1,Math.min(3,game.demand+(Math.random()<.5?(Math.random()<.5?-1:1):0)));
+   game.marketPrice=Math.max(950,Math.round(980+game.demand*60+(Math.random()*90-45)));
+ }
+ if(has('materials'))game.motorPrice=Math.max(240,Math.round(270+Math.random()*90));
+ if(has('orders')){
+   orders=orders.filter(o=>{
+     if(game.day>o.deadline){log(`❌ פספסת את הדדליין של ${o.client}. ההזמנה בוטלה וקנס ${money(o.qty*60)}.`);changeFin(0,o.qty*60);return false}
+     return true;
+   });
+   if(orders.length<(has('expansion')?4:2)&&Math.random()<0.45)genOrder();
+ }
+ if(game.day%30===0){
+   log(`📅 סוף חודש. רווח/הפסד: ${money(game.monthRevenue-game.monthExpenses)}.`);
+   game.monthRevenue=0;game.monthExpenses=0;
+ }
+ if(has('events')&&Math.random()<0.16)randomEvent();
+ game.day++;
+ render()
+}
+function randomEvent(){
+ let events=[
+  ()=>{game.condition=Math.max(0,game.condition-8);log('🔧 סטיית כיול התגלתה בביקורת של זרוע ההלחמה.');},
+  ()=>{game.demand=3;game.marketPrice+=90;log('📈 רגולציה חדשה פתחה שוק צילום אווירי. הביקוש זינק.');},
+  ()=>{game.quality=Math.max(80,game.quality-3);log('🧪 מנה פגומה של בקרי טיסה הגיעה מהספק.');},
+  ()=>{let x=4500;game.cash+=x;game.monthRevenue+=x;game.dayRevenue+=x;log('🤝 לקוח ותיק רכש 4 רחפנים ישירות מהמחסן: ₪4,500.');}
+ ];events[Math.floor(Math.random()*events.length)]()
+}
+function tick(){
+ checkStage();
+ if(game.paused||!game.production)return;
+ const r=blockedReason();
+ if(r){game.production=false;log('ההרכבה נעצרה: '+r);render();return}
+ game.progress+=0.5;
+ if(game.progress>=1){
+   game.progress=0;
+   for(let m=0;m<game.lines;m++)for(let i=0;i<PER_CYCLE;i++){
+     if(has('materials')){
+       if(game.motors<1||game.batteries<1)break;
+       game.motors-=1;game.batteries-=1;
+     }
+     if(game.finished>=game.capacity)break;
+     if(has('quality')&&Math.random()>game.quality/100){log('פסילה: רחפן אחד נכשל בבדיקת טיסה.');continue}
+     game.finished++;game.produced++;
+   }
+ }
+ if(has('breakdowns'))game.condition=Math.max(0,game.condition-0.05*game.lines);
+ render()
+}
+setInterval(tick,1000);
+setInterval(()=>{if(!game.paused)newDay()},15000);
+function pauseGame(){game.paused=!game.paused;render()}
+if(load()){
+ log(`המשחק נטען מהמצב האחרון: יום ${game.day}, שלב ${game.stage} בהדרכה.`);
+ render();
+ if(game.tutOpen)showTut();   // רוענן באמצע הסבר שלב, מציגים אותו שוב
+}else{
+ log('ברוך הבא למפעל הרחפנים.');
+ render();showTut();
+}
+</script>
+</body>
+</html>
