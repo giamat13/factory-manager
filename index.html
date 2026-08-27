@@ -492,7 +492,7 @@ function createNewModel(){
  const name=(prompt('איך יקרא הדגם החדש? (למשל: פרו למקצוענים / לייט לחובבנים)','X'+(game.modelCounter+10))||'').trim().slice(0,24)||('X'+(game.modelCounter+10));
  changeFin(0,cost);
  game.models[id]={id,name,createdDay:game.day,bom,status:'active',retireDay:null,clearanceUntil:null,sold:0};
- game.activeModelId=id; game.finished=0; game.finishedByModel[id]=0; game.production=false;
+ game.activeModelId=id; game.finished=0; game.finishedByModel[id]=0;
  log(`🆕 דגם ${name} נוצר. בחר עכשיו רכיב אחר רכיב ושמור את המפרט.`);
  render();
 }
@@ -773,13 +773,14 @@ function render(){
  document.getElementById('demand').textContent=['נמוך','בינוני','גבוה'][game.demand-1];
  document.getElementById('debt').textContent=money(game.debt);
  document.getElementById('dailyPay').textContent=money(game.debt>0?Math.max(200,game.debt*0.02):0);
- document.getElementById('machineStatus').textContent=game.production?(workHour()?'פועל':'ידלוק ב-08:00'):'כבוי';
- document.getElementById('machineStatus').className='badge '+(game.production?(workHour()?'ok':'warn'):'warn');
+ document.getElementById('machineStatus').textContent=game.production?(game.blockReason?'מושהה':workHour()?'פועל':'ידלוק ב-08:00'):'כבוי';
+ document.getElementById('machineStatus').className='badge '+(game.production&&!game.blockReason?(workHour()?'ok':'warn'):'warn');
  document.getElementById('prodBtn').textContent=game.production?'עצור ייצור':'הפעל ייצור';
  const blocked=game.production?null:blockedReason();
  document.getElementById('statusNotice').textContent=
   game.production
-   ?(workHour()?'הקו פועל. רחפנים שעברו בדיקת טיסה נכנסים למחסן.':'המתג דלוק, אבל עכשיו לילה. הייצור יתחדש אוטומטית ב-08:00.')
+   ?(game.blockReason?'⏸️ הייצור מושהה — '+game.blockReason
+     :workHour()?'הקו פועל. רחפנים שעברו בדיקת טיסה נכנסים למחסן.':'המתג דלוק, אבל עכשיו לילה. הייצור יתחדש אוטומטית ב-08:00.')
    :blocked?'⛔ אי אפשר להפעיל ייצור — '+blocked
    :(workHour()?'המפעל מושבת כרגע. הפעל קו ייצור כדי להתחיל.':'המפעל מושבת ללילה. אם תשאיר את המתג כבוי, הוא יישאר כבוי גם מחר בבוקר.');
  document.getElementById('prodBar').style.width=(game.progress*100)+'%';
@@ -1196,8 +1197,8 @@ function closeDay(){
    });
    // סיכוי להזמנה חדשה ליום: בסיס + בונוס פרסום, מוגבל למספר הזמנות פתוחות
    const adBonus=has('marketing')?[0,0.12,0.25,0.42,0.55,0.68][game.adLevel]:0;
-   const maxOpen=has('expansion')?5:3;
-   if(orders.length<maxOpen&&Math.random()<0.55+adBonus)genOrder();
+   const maxOpen=(has('expansion')?5:3)*3;
+   for(let i=0;i<3;i++)if(orders.length<maxOpen&&Math.random()<0.55+adBonus)genOrder();
    if(has('marketing')&&game.adLevel>0&&orders.length<maxOpen+2&&Math.random()<adBonus)genOrder();
  }
  if(has('marketing')&&game.adLevel>0)changeFin(0,AD[game.adLevel].cost);
