@@ -547,7 +547,7 @@ const freshGame=(h2Name,seriesName)=>({
  competitorBrands:assignCategoryBrands(),
  activeModelId:'H2', modelCounter:2,
  models:{
-  H2:{id:'H2',name:h2Name||'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0,adLevel:0,seriesName:seriesName||'סדרה ראשונה'}
+  H2:{id:'H2',name:h2Name||'H2',createdDay:1,launchDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0,adLevel:0,seriesName:seriesName||'סדרה ראשונה'}
  },
  founderCredit:18000, founderCreditStartDay:3,
  clearanceFund:0,
@@ -637,8 +637,8 @@ function selectForEditing(id){
 }
 function launchModel(id){
  const m=game.models[id]; if(!m||m.status!=='announced')return;
- m.status='active';
- log(`🚀 ${m.name} הושק! המפרט ננעל — כדי לשנות רכיבים צריך לתכנן דגם חדש.`);
+ m.status='active'; m.launchDay=game.day;
+ log(`🚀 ${m.name} הושק! המפרט ננעל — כדי לשנות רכיבים צריך לתכנן דגם חדש. שיווק ייעודי ניתן לכיוון ל-${AD_WINDOW_DAYS} הימים הבאים בלבד.`);
  render();
 }
 const LINE_CHANGEOVER_HOURS=3, LINE_CHANGEOVER_COST=600;
@@ -696,7 +696,7 @@ function createNewModel(){
  render();
 }
 function setModelAd(id,level){
- const m=game.models[id]; if(!m)return;
+ const m=game.models[id]; if(!m||!inAdWindow(m))return;
  m.adLevel=Math.max(0,Math.min(AD.length-1,+level||0));
  log(`📣 שיווק ${m.name} עודכן ל: ${AD[m.adLevel].name}.`);
  render();
@@ -765,7 +765,7 @@ function renderModels(){
       <h3>${m.name}${m.seriesName?` <span class="muted" style="font-size:10.5px;font-weight:600">· סדרת ${m.seriesName}</span>`:''}</h3>
       <div class="modelSpec">נוצר ביום ${m.createdDay} · עלות רכיבים ${money(modelMatCost(m))} · מחיר צפוי ${money(modelPriceEstimate(m))} · מלאי ${units}</div>
       <div class="modelSpec">מפרט: ${modelSpecScore(m)>=0?'+':''}${modelSpecScore(m)} נק׳ · ${m.status==='clearance'?'חלון עד יום '+m.clearanceUntil:''}</div>
-      ${has('marketing')&&m.status==='active'?`<div class="modelSpec">📣 שיווק ייעודי: <select onchange="setModelAd('${m.id}',this.value)" style="font-size:12px">${AD.map((a,i)=>`<option value="${i}"${i===(m.adLevel||0)?' selected':''}>${a.name} (${money(a.cost)}/יום)</option>`).join('')}</select></div>`:''}
+      ${has('marketing')&&m.status==='active'&&inAdWindow(m)?`<div class="modelSpec">📣 שיווק ייעודי (עוד ${AD_WINDOW_DAYS-(game.day-m.launchDay)} ימים): <select onchange="setModelAd('${m.id}',this.value)" style="font-size:12px">${AD.map((a,i)=>`<option value="${i}"${i===(m.adLevel||0)?' selected':''}>${a.name} (${money(a.cost)}/יום)</option>`).join('')}</select></div>`:''}
       <div class="controls" style="margin-top:9px">${btn}</div>
     </div>`;
  }).join('');
@@ -821,6 +821,8 @@ function checkComponentUnlocks(){
 
 let game=seedStarterStock(freshGame()), orders=[], nextId=1;
 const AD=[{cost:0,name:'כבוי'},{cost:250,name:'מקומי'},{cost:700,name:'ארצי'},{cost:1800,name:'קמפיין דיגיטלי'},{cost:3200,name:'קמפיין ארצי מוגבר'},{cost:5000,name:'השקה ויראלית'}];
+const AD_WINDOW_DAYS=5;   // שיווק ייעודי לדגם ניתן לכיוון רק בימים הראשונים אחרי ההשקה, אחרי זה נסגר ל-"כבוי"
+const inAdWindow=m=>m.launchDay!=null&&game.day-m.launchDay<AD_WINDOW_DAYS;
 
 // ── שלבי ההדרכה ──────────────────────────────────────────────
 // כל פיצ'ר נפתח בשלב שלו; has() שולט גם ב-UI (data-req) וגם בסימולציה.
@@ -1715,6 +1717,10 @@ function closeDay(){
  }
  if(has('marketing')&&game.adLevel>0)changeFin(0,AD[game.adLevel].cost);
  if(has('marketing')){
+   // חלון השיווק הייעודי נסגר אחרי AD_WINDOW_DAYS — כשהוא נסגר, כבים את התקציב אוטומטית
+   Object.values(game.models).forEach(m=>{
+     if(m.status==='active'&&(m.adLevel||0)>0&&!inAdWindow(m)){m.adLevel=0;log(`📣 חלון השיווק הייעודי של ${m.name} נסגר — התקציב כובה.`)}
+   });
    // כל דגם עם שיווק ייעודי משלם את התקציב היומי שלו בנפרד מהשיווק הכללי
    const perModelAdCost=Object.values(game.models).filter(x=>x.status==='active'&&(x.adLevel||0)>0).reduce((s,x)=>s+AD[x.adLevel].cost,0);
    if(perModelAdCost)changeFin(0,perModelAdCost);
