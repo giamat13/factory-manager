@@ -412,6 +412,25 @@ const COMPONENT_CATEGORIES=[
   {id:'frame_std',name:'Carbon Standard',base:610,desc:'האיזון הקלאסי של H2'},
   {id:'frame_pro',name:'Carbon Pro',base:900,desc:'קשיחות גבוהה ועמידות'},
   {id:'frame_ext',name:'AeroShell',base:1250,desc:'אווירודינמית ופרימיום'}
+ ]},
+ // רכיבים אופציונליים: הרמה הראשונה בכל אחד מהם היא "ללא" במחיר 0 — הדגם הבסיסי לא כולל אותם, וכל דגם יכול לבחור לשדרג אליהם או להישאר בלעדיהם.
+ {key:'gps',name:'איתור אנטי-גניבה',icon:'📡',per:1,variants:[
+  {id:'gps_none',name:'ללא',base:0,desc:'הדגם הבסיסי מסתמך רק על ה-GPS הניווטי שבבקר הטיסה, בלי משדר איתור נפרד'},
+  {id:'gps_std',name:'Tracker Basic',base:140,desc:'משדר איתור סלולרי נפרד למקרה גניבה, מעבר ל-GPS הניווטי'},
+  {id:'gps_pro',name:'Tracker Pro',base:240,desc:'איתור בזמן אמת והתראת גניבה לאפליקציה'},
+  {id:'gps_ext',name:'Tracker Elite',base:380,desc:'משדר לוויני גלובלי עם סוללת גיבוי עצמאית'}
+ ]},
+ {key:'lights',name:'תאורת לילה מקצועית',icon:'💡',per:4,variants:[
+  {id:'lights_none',name:'ללא',base:0,desc:'רק נורית מצב בסיסית מהמסגרת, בלי מערך תאורת לילה ייעודי'},
+  {id:'lights_std',name:'LED כיווני',base:10,desc:'נורות חזית/אחור עוצמתיות לזיהוי ברור בטיסת לילה'},
+  {id:'lights_pro',name:'סטרובו אנטי-התנגשות',base:18,desc:'הבהוב תעופתי בהיר, נדרש לטיסות מסחריות בלילה'},
+  {id:'lights_ext',name:'RGB חכם',base:30,desc:'תאורה צבעונית ניתנת לתכנות, גם למופעים ואירועים'}
+ ]},
+ {key:'sensors',name:'חיישני מכשולים',icon:'🛡️',per:1,variants:[
+  {id:'sensors_none',name:'ללא',base:0,desc:'ללא הימנעות אוטומטית ממכשולים'},
+  {id:'sensors_std',name:'סונאר קדמי',base:180,desc:'חיישן יחיד בחזית הרחפן'},
+  {id:'sensors_pro',name:'חזית + אחור',base:320,desc:'זיהוי דו-כיווני'},
+  {id:'sensors_ext',name:'חישה 360°',base:520,desc:'הימנעות ממכשולים מכל הכיוונים'}
  ]}
 ];
 
@@ -424,7 +443,8 @@ const variantCost=id=>Math.round(game?.componentPrices?.[id]||componentById(id)?
 const baseVariantCost=id=>componentById(id)?.base||0;
 const bomUnitCost=(bom)=>COMPONENT_CATEGORIES.reduce((s,c)=>s+variantCost(bom[c.key])*c.per,0);
 // עלות הרכיבים של רחפן סטנדרטי במחירי בסיס. עוגן לכל התמחור בשוק.
-const STD_MAT_COST=COMPONENT_CATEGORIES.reduce((s,c)=>s+c.variants[1].base*c.per,0);
+// רכיב אופציונלי (רמה 0 = "ללא" במחיר 0) לא נכנס לעוגן התמחור — עוגן השוק מייצג רק את מה שכל רחפן חייב לכלול.
+const STD_MAT_COST=COMPONENT_CATEGORIES.reduce((s,c)=>s+(c.variants[0].base===0?0:c.variants[1].base)*c.per,0);
 const bomSpecScore=(bom)=>COMPONENT_CATEGORIES.reduce((s,c)=>{
  const v=componentById(bom[c.key]); return s+(v?c.variants.findIndex(x=>x.id===v.id)-1:0);
 },0);
@@ -464,9 +484,9 @@ const WORKER_NAMES=['דניאל','נועה','איתי','שירה','יונתן','
  'עמית','נועם','גיא','אור','שקד','דנה','איתמר','חן','יאיר','טליה','זיו','מור','עדן','ניר','רוני','יעל',
  'סתיו','אביב','לירון','נגה','אלעד','אורית','רן','ורד'];
 function genCandidate(){
- const skill=30+Math.round(Math.random()*65);         // מיומנות → איכות
- const speed=+(0.7+Math.random()*0.7).toFixed(2);      // מהירות → תפוקת קו
  const exp=Math.round(Math.random()*40);               // ותק/כמה כבר למד → מפחית סיכון לשביתה
+ const skill=Math.min(95,30+Math.round(exp*0.9)+Math.round(Math.random()*25)); // מיומנות → איכות; קורלציה עם ותק, כדי שוותיק לא ייצא במיומנות נמוכה
+ const speed=+(0.7+Math.random()*0.7).toFixed(2);      // מהירות → תפוקת קו
  const wage=Math.round(300+skill*2.2+speed*180+exp*2.3+(Math.random()*50-25));
  return {id:'C'+Math.random().toString(36).slice(2,8),name:WORKER_NAMES[Math.floor(Math.random()*WORKER_NAMES.length)],skill,speed,exp,wage};
 }
@@ -689,7 +709,7 @@ function renderComponents(){
       <div class="componentHead"><div><h3>${c.icon} ${c.name}</h3><div class="muted">${c.per} יח׳ לדגם · דור ${gen+1}/4</div></div><b>${money(variantCost(selected)*c.per)}</b></div>
       <div class="componentOptions">${unlockedVariants(c).map((v,i)=>{
         const sel=v.id===selected;
-        const lvl=i===0?'תקציבי':i===1?'סטנדרט':i===2?'פרו':'אקסטרים';
+        const lvl=v.base===0?'ללא':i===0?'תקציבי':i===1?'סטנדרט':i===2?'פרו':'אקסטרים';
         const old=isDiscontinued(c,v)&&!sel;
         const clickable=!locked&&!old;
         return `<div class="componentOption ${sel?'selected':''} ${(old||(locked&&!sel))?'discontinued':''}" ${clickable?`onclick="chooseComponent('${c.key}','${v.id}')"`:''}>
@@ -1007,7 +1027,7 @@ function load(){
    game.models={H2:{id:'H2',name:'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:game.shipped||0}};
   }
   Object.values(game.models).forEach(m=>{
-   m.bom=m.bom||defaultBom(); m.status=m.status||'active'; if(!('sold' in m))m.sold=0;
+   m.bom=Object.assign(defaultBom(),m.bom||{}); m.status=m.status||'active'; if(!('sold' in m))m.sold=0;
   });
   // שמירה ישנה: מונה טכנאים גלובלי בלי צוות אמיתי → ממלאים אנשי צוות גנריים לפי המספר והשכר הישנים.
   if(!Array.isArray(game.roster))game.roster=[];
