@@ -721,6 +721,30 @@ function createNewModel(){
  log(`🧬 ${name} הוכרז ושויך לסדרת ${seriesName}, שיווק: ${AD[adLevel].name}. אפשר לבחור רכיבים בסטודיו ולהשיק כשמוכן.`);
  render();
 }
+// תת-דגם: מבוסס על דגם קיים, עם סיומת לשם (למשל Pro) ואותה סדרה. שאר הזרימה זהה ל-spawnModel.
+function createSubModel(baseId){
+ if(!has('modelShop'))return;
+ const base=game.models[baseId]; if(!base)return;
+ if(game.cash<7500){log('אין מספיק מזומן לפיתוח תת-דגם.');return}
+ const suffixRaw=prompt(`איזה תת-דגם ליצור מ-${base.name}? (למשל: Pro / Lite)`,'Pro');
+ if(suffixRaw===null)return;
+ const suffix=suffixRaw.trim().slice(0,16);
+ if(!suffix){log('❌ יצירת תת-הדגם בוטלה: לא הוזן שם.');return}
+ const name=`${base.name} ${suffix}`.slice(0,24);
+ let adLevel=0;
+ if(has('marketing')){
+   const options=AD.map((a,i)=>`${i}=${a.name} (${money(a.cost)}/יום)`).join(' · ');
+   const adRaw=prompt(`איזה שיווק ייעודי לדגם ${name}? ${options}`,'0');
+   if(adRaw===null)return;
+   adLevel=Math.max(0,Math.min(AD.length-1,Math.round(+adRaw)||0));
+ }
+ const oldActive=game.activeModelId;
+ game.activeModelId=baseId;   // spawnModel מעתיק bom מה-active, אז מציבים זמנית את הבסיס
+ const id=spawnModel(name,base.seriesName,adLevel);
+ if(!id){game.activeModelId=oldActive;return}
+ log(`🧬 ${name} נוצר כתת-דגם של ${base.name}, סדרת ${base.seriesName}, שיווק: ${AD[adLevel].name}.`);
+ render();
+}
 function setModelAd(id,level){
  const m=game.models[id]; if(!m||!inAdWindow(m))return;
  m.adLevel=Math.max(0,Math.min(AD.length-1,+level||0));
@@ -783,7 +807,8 @@ function renderModels(){
    }else if(m.status==='active'){
      btn=(editing?'<button disabled>הדגם הפעיל</button>'
       :`<button class="secondary" onclick="switchModel('${m.id}')">ייצר בדגם הזה</button> <button class="red" onclick="retireModel('${m.id}')">הוצא מהשוק</button>`)
-      +` <button class="secondary" onclick="adjustModelPrice('${m.id}',-0.05)">⬇️ הורד מחיר</button> <button class="secondary" onclick="adjustModelPrice('${m.id}',0.05)">⬆️ העלה מחיר</button>`;
+      +` <button class="secondary" onclick="adjustModelPrice('${m.id}',-0.05)">⬇️ הורד מחיר</button> <button class="secondary" onclick="adjustModelPrice('${m.id}',0.05)">⬆️ העלה מחיר</button>`
+      +` <button class="secondary" onclick="createSubModel('${m.id}')">➕ צור תת-דגם</button>`;
    }else{
      btn=`<button class="secondary" onclick="sellClearance('${m.id}')">מכור שאריות</button>`;
    }
