@@ -332,20 +332,7 @@ tr:hover td{background:#00000006}
 
    <div class="panel" data-req="bank">
     <h2>📊 מניית החברה</h2>
-    <div id="preIpoBox">
-     <div class="muted">עדיין לא הנפקת את החברה בשוק ההון. הנפקה ראשונית (IPO) מוכרת 25% מהמניות לציבור תמורת מזומן מיידי, אבל מדללת את הבעלות שלך.</div>
-     <button style="margin-top:10px" onclick="doIPO()">בצע הנפקה (IPO)</button>
-    </div>
-    <div id="postIpoBox" hidden>
-     <div class="row"><span>מחיר מניה</span><b id="sharePrice">₪0</b></div>
-     <div class="row"><span>שווי שוק</span><b id="marketCap">₪0</b></div>
-     <div class="row"><span>הבעלות שלך</span><b id="ownerPct">100%</b></div>
-     <div class="controls" style="margin-top:10px">
-      <button class="secondary" onclick="buybackShares(1000)">רכישה חוזרת — 1,000 מניות</button>
-      <button class="secondary" onclick="issueShares(1000)">הנפקת מניות — 1,000</button>
-     </div>
-     <div class="muted" style="margin-top:8px">רכישה חוזרת מצמצמת את הצף ומייקרת את המניה תמורת מזומן; הנפקה מגייסת מזומן אך מדללת אותך ולוחצת את המחיר למטה.</div>
-    </div>
+    <div class="row"><span>מחיר מניה</span><b id="sharePrice">₪0</b></div>
    </div>
 
    <div class="panel" data-req="market">
@@ -565,7 +552,7 @@ const freshGame=(h2Name)=>({
  founderCredit:18000, founderCreditStartDay:3,
  clearanceFund:0,
  benefits:false, lineWear:[0], demandIndex:2, competitionIndex:1,
- stockIPODone:false, sharePrice:0, sharesTotal:100000, publicShares:0, playerShares:100000
+ sharePrice:0
 });
 // מלאי פתיחה מחושב לפי צריכת ההדרכה: 30 רחפני H2 סטנדרטיים.
 // זה כולל 20 רחפנים הנדרשים למדריך + עוד 10 כרזרבה, ולא ממלא את כל הווריאציות סתם.
@@ -1079,13 +1066,7 @@ function render(){
  document.getElementById('demand').textContent=['נמוך','בינוני','גבוה'][game.demand-1];
  document.getElementById('benefitsBtn').textContent=game.benefits?'בטל':'הפעל — +12% שכר';
  document.getElementById('benefitsBtn').className=game.benefits?'red':'';
- document.getElementById('preIpoBox').hidden=game.stockIPODone;
- document.getElementById('postIpoBox').hidden=!game.stockIPODone;
- if(game.stockIPODone){
-   document.getElementById('sharePrice').textContent=money(game.sharePrice);
-   document.getElementById('marketCap').textContent=money(game.sharePrice*game.sharesTotal);
-   document.getElementById('ownerPct').textContent=Math.round(game.playerShares/game.sharesTotal*100)+'%';
- }
+ if(has('bank'))document.getElementById('sharePrice').textContent=money(game.sharePrice);
  document.getElementById('debt').textContent=money(game.debt);
  document.getElementById('dailyPay').textContent=money(game.debt>0?Math.max(200,game.debt*0.02):0);
  {const lev=game.debt/Math.max(1,game.cash+game.debt);document.getElementById('intRate').textContent=(0.15*(1+lev*1.5)).toFixed(2)+'%';}
@@ -1465,41 +1446,16 @@ function toggleBenefits(){
  log(game.benefits?'🩺 נוספו ביטוח בריאות ופנסיה לצוות (+12% על השכר) — מוריד סיכון עזיבה ושביתה.':'הוצאו הטבות בריאות ופנסיה מהצוות.');
  render();
 }
-// ── שוק ההון: מחיר המניה נגזר משילוב של מזומן, רווח יומי, מוניטין ושיעור הצף — לא מספר קבוע. ──
+// ── שוק ההון: מחיר המניה נגזר משילוב של מזומן, רווח יומי ומוניטין. תצוגה בלבד, אין מסחר בפועל. ──
+const SHARES_TOTAL=100000;
 function stockValuationTarget(){
- const floatRatio=game.publicShares/Math.max(1,game.sharesTotal);
  const earningsSignal=Math.max(-1,Math.min(2,(game.dayRevenue-game.dayExpenses)/2000));
  const repSignal=(game.rep-50)/50;
- const base=Math.max(0.2,game.cash)/game.sharesTotal*3;
- return Math.max(0.5,base*(1+earningsSignal*0.4+repSignal*0.25)*(1-floatRatio*0.15));
+ const base=Math.max(0.2,game.cash)/SHARES_TOTAL*3;
+ return Math.max(0.5,base*(1+earningsSignal*0.4+repSignal*0.25));
 }
 function updateStockPrice(){
  game.sharePrice=Math.max(0.5,+(game.sharePrice*0.7+stockValuationTarget()*0.3).toFixed(2));
-}
-function doIPO(){
- if(game.stockIPODone)return;
- const sharesSold=Math.round(game.sharesTotal*0.25);
- game.sharePrice=+(Math.max(0.2,game.cash)/game.sharesTotal*3).toFixed(2);
- const proceeds=Math.round(sharesSold*game.sharePrice);
- game.publicShares+=sharesSold; game.playerShares-=sharesSold; game.stockIPODone=true;
- changeFin(proceeds,0);
- log(`📊 הנפקה ראשונית (IPO): נמכרו ${sharesSold.toLocaleString('he-IL')} מניות (25%) לציבור במחיר ${money(game.sharePrice)} למניה — גויסו ${money(proceeds)}.`);
- render();
-}
-function buybackShares(n){
- if(!game.stockIPODone||n>game.publicShares){log('אין מספיק מניות בציבור לרכישה חוזרת.');return}
- const cost=Math.round(n*game.sharePrice*1.05);
- if(game.cash<cost){log('אין מספיק מזומן לרכישה חוזרת.');return}
- changeFin(0,cost); game.publicShares-=n; game.playerShares+=n;
- log(`📈 רכישה חוזרת של ${n.toLocaleString('he-IL')} מניות תמורת ${money(cost)}. הבעלות שלך עלתה ל-${Math.round(game.playerShares/game.sharesTotal*100)}%.`);
- render();
-}
-function issueShares(n){
- if(!game.stockIPODone)return;
- const proceeds=Math.round(n*game.sharePrice*0.95);
- changeFin(proceeds,0); game.sharesTotal+=n; game.publicShares+=n;
- log(`📉 הונפקו ${n.toLocaleString('he-IL')} מניות חדשות תמורת ${money(proceeds)} — הבעלות שלך דוללה ל-${Math.round(game.playerShares/game.sharesTotal*100)}%.`);
- render();
 }
 function repay(sum){
  sum=Math.min(sum,game.debt);
@@ -1693,7 +1649,7 @@ function closeDay(){
  }
  if(exp)changeFin(0,exp);
 
- if(has('bank')&&game.stockIPODone)updateStockPrice();
+ if(has('bank'))updateStockPrice();
 
  if(game.stage===5&&game.dayRevenue>game.dayExpenses&&game.dayRevenue>0){
    log(`📗 סיימת את היום ברווח של ${money(game.dayRevenue-game.dayExpenses)}.`);
