@@ -465,6 +465,18 @@ const COMPONENT_CATEGORIES=[
  ]}
 ];
 
+// דורות נוספים מעבר לארבעה הראשונים נגזרים אוטומטית מיחס המחירים בין שני הדורות האחרונים,
+// כך שדור 1 (התקציבי) נשאר זהה אבל נראה חלש יותר יחסית ככל שהמשחק מתקדם ודורות חדשים מתרחקים ממנו.
+function extendGenerations(c,total){
+ const prefix=c.variants[0].id.split('_')[0];
+ while(c.variants.length<total){
+  const n=c.variants.length, prev=c.variants[n-1], prev2=c.variants[n-2]||prev;
+  const growth=prev.base>0&&prev2.base>0?prev.base/prev2.base:1.35;
+  c.variants.push({id:`${prefix}_gen${n+1}`,name:`דור ${n+1}`,base:Math.round(prev.base*Math.max(1.2,growth)),desc:`שיפור טכנולוגי נוסף על הדור הקודם של ${c.name}.`});
+ }
+}
+COMPONENT_CATEGORIES.forEach(c=>extendGenerations(c,10));
+const tierLabel=(v,i)=>v.base===0?'ללא':i===0?'תקציבי':i===1?'סטנדרט':i===2?'פרו':i===3?'אקסטרים':`דור ${i+1}`;
 const PARTS=COMPONENT_CATEGORIES.map(c=>({key:c.key,name:c.name,per:c.per,base:c.variants[1].base,desc:c.variants[1].desc}));
 const ALL_COMPONENTS=COMPONENT_CATEGORIES.flatMap(c=>c.variants.map(v=>({...v,category:c.key,categoryName:c.name,per:c.per})));
 const componentById=id=>ALL_COMPONENTS.find(v=>v.id===id);
@@ -495,7 +507,7 @@ function buildGenSchedule(){
  COMPONENT_CATEGORIES.forEach((c,ci)=>{
   let day=1+ci*6+15+Math.round(Math.random()*10);
   sched[c.key]=[];
-  for(let g=1;g<4;g++){
+  for(let g=1;g<c.variants.length;g++){
    sched[c.key].push(day);
    day+=GEN_INTERVAL_MIN+Math.round(Math.random()*(GEN_INTERVAL_MAX-GEN_INTERVAL_MIN));
   }
@@ -793,10 +805,10 @@ function renderComponents(){
    const selected=m.bom[c.key];
    const gen=componentGenOf(c.key);
    return `<div class="componentCard">
-      <div class="componentHead"><div><h3>${c.icon} ${c.name}</h3><div class="muted">${c.per} יח׳ לדגם · דור ${gen+1}/4</div></div><b>${money(variantCost(selected)*c.per)}</b></div>
+      <div class="componentHead"><div><h3>${c.icon} ${c.name}</h3><div class="muted">${c.per} יח׳ לדגם · דור ${gen+1}/${c.variants.length}</div></div><b>${money(variantCost(selected)*c.per)}</b></div>
       <div class="componentOptions">${unlockedVariants(c).map((v,i)=>{
         const sel=v.id===selected;
-        const lvl=v.base===0?'ללא':i===0?'תקציבי':i===1?'סטנדרט':i===2?'פרו':'אקסטרים';
+        const lvl=tierLabel(v,i);
         const old=isDiscontinued(c,v)&&!sel;
         const clickable=!locked&&!old;
         return `<div class="componentOption ${sel?'selected':''} ${(old||(locked&&!sel))?'discontinued':''}" ${clickable?`onclick="chooseComponent('${c.key}','${v.id}')"`:''}>
@@ -825,7 +837,7 @@ function checkComponentUnlocks(){
  COMPONENT_CATEGORIES.forEach(c=>{
   const gen=componentGenOf(c.key);
   const sched=game.componentGenSchedule?.[c.key]||[];
-  if(gen>=3||sched[gen]===undefined||game.day<sched[gen])return;
+  if(sched[gen]===undefined||game.day<sched[gen])return;
   game.componentGen[c.key]=gen+1;
   const v=c.variants[gen+1];
   const retiring=gen>=1?c.variants[gen-1]:null;
@@ -1114,6 +1126,12 @@ function load(){
   const isOldBom=!!d.game.stock&&!ALL_COMPONENTS.every(v=>Object.prototype.hasOwnProperty.call(d.game.stock,v.id));
   Object.assign(game,freshGame(),d.game);   // שדות חדשים מקבלים ברירת מחדל
    game.stage=Math.min(game.stage,STAGES.length-1);   // הדרכה ששונתה בעדכון — לא ליפול משלב שכבר לא קיים
+   // שמירה ישנה: לוח דורות רכיבים קצר מזה שנבנה כיום — משלימים את הדורות החדשים שנוספו אחריו.
+   COMPONENT_CATEGORIES.forEach(c=>{
+    const sched=game.componentGenSchedule[c.key]||(game.componentGenSchedule[c.key]=[]);
+    let day=sched.length?sched[sched.length-1]:game.day;
+    while(sched.length<c.variants.length-1){day+=GEN_INTERVAL_MIN+Math.round(Math.random()*(GEN_INTERVAL_MAX-GEN_INTERVAL_MIN));sched.push(day)}
+   });
    game.lineIssues=Array.from({length:game.lines},(_,i)=>!!(d.game.lineIssues||[])[i]);
    while(game.lineIssues.length<game.lines)game.lineIssues.push(false);
    game.lineBuffers=Array.from({length:game.lines},(_,i)=>+(d.game.lineBuffers||[])[i]||0);
@@ -1353,7 +1371,7 @@ function renderParts(){
    if(qty && document.activeElement!==qty)qty.value=c.per*BUY_BUILDS;
    const stockEl=document.getElementById('stockList-'+c.key);
    if(stockEl)stockEl.innerHTML=variants.map((v,i)=>{
-     const lvl=i===0?'תקציבי':i===1?'סטנדרט':i===2?'פרו':'אקסטרים';
+     const lvl=tierLabel(v,i);
      const old=isDiscontinued(c,v);
      return `<div>${old?'🕰️':'🟢'} ${lvl} · ${v.name}: <b>${Math.floor(game.stock[v.id]||0)}</b>${old?' <span class="muted">(דגם ישן)</span>':''}</div>`;
    }).join('');
