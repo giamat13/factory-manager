@@ -934,7 +934,7 @@ function advance(){
 }
 function checkStage(){
  const s=STAGES[game.stage];
- if(s&&s.done&&s.done()&&document.getElementById('tut').hidden)advance();
+ if(s&&s.done&&s.done()&&game.stage<STAGES.length-1&&document.getElementById('tut').hidden)advance();
 }
 function skipTutorial(){
  while(game.stage<STAGES.length-1){const s=STAGES[game.stage+1];game.stage++;if(s.on)s.on();}
