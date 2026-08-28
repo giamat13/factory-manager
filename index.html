@@ -1880,6 +1880,10 @@ function updateComponentMarkets(){
  game.componentMarketIndex=Math.round(ids.reduce((s,id)=>s+game.componentPrices[id],0)/Math.max(1,ids.reduce((s,id)=>s+(componentById(id)?.base||1),0))*100);
 }
 function tick(){
+ try{ tickInner(); }
+ catch(e){ console.error('tick failed, resuming next tick',e); }
+}
+function tickInner(){
  checkStage();
  if(game.paused)return;
  if(game.production){
