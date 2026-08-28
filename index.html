@@ -1261,6 +1261,7 @@ function maintain(){
 }
 function buyVariant(id,forcedQty){
  const v=componentById(id); if(!v)return;
+ if(isNoneVariant(id)){log('❌ "ללא" אינו רכיב פיזי — אין מה להזמין.');return}
  const qty=Math.max(1,Math.floor(forcedQty||+document.getElementById('qty-'+id)?.value||40));
  const gross=Math.round(qty*variantCost(v.id)*bulkDiscountMul(qty))+400;
  if(stored()+pendingQtyOf()+qty>game.capacity){log('אין מספיק מקום במחסן (כולל הזמנות בדרך).');return}
@@ -1360,7 +1361,7 @@ function renderClearance(){
       <div class="controls" style="margin-top:7px"><button class="amber" onclick="sellClearance('${m.id}')">מכור שאריות עכשיו</button></div></div>`;
  }).join('');
 }
-const expressPlan=(builds=EXPRESS_BUILDS,bom=activeBom())=>COMPONENT_CATEGORIES.map(c=>({id:bom[c.key],qty:c.per*builds}));
+const expressPlan=(builds=EXPRESS_BUILDS,bom=activeBom())=>COMPONENT_CATEGORIES.filter(c=>!isNoneVariant(bom[c.key])).map(c=>({id:bom[c.key],qty:c.per*builds}));
 const expressCost=(plan=expressPlan())=>plan.reduce((s,x)=>s+Math.round(x.qty*variantCost(x.id)*bulkDiscountMul(x.qty)),0)+400*plan.length;
 function expressOrder(){
  // ערכה שלמה: לכל רכיב הכמות שבאמת נכנסת לרחפן, בדיוק כמו מלאי הפתיחה
