@@ -235,6 +235,7 @@ tr:hover td{background:#00000006}
     <div class="row"><span>שכר יומי כולל</span><b id="totalWage">₪0</b></div>
     <div id="rosterList"></div>
     <div class="row" id="strikeRow" hidden><div><b class="badtext">⚠️ שביתה!</b><div class="muted">העובדים דורשים העלאת שכר ולא עובדים עד שתאשר</div></div><button class="amber" onclick="grantRaise()">אשר העלאת שכר (+12% לכולם)</button></div>
+    <div class="row"><div><b>ביטוח בריאות ופנסיה</b><div class="muted">+12% על השכר הכולל, מוריד משמעותית סיכון עזיבה ושביתה — עובד חדש גם עולה לקצב מלא לאט יותר מעובד ותיק, אז שווה לשמור על הצוות</div></div><button id="benefitsBtn" onclick="toggleBenefits()">הפעל</button></div>
     <div id="hireArea" style="margin-top:12px">
      <b>🧑‍💼 מועמדים לעבודה</b>
      <div class="muted" style="margin:4px 0 8px">לכל מועמד שכר משלו ושלוש תכונות שמשפיעות שונה: מהירות מגדילה תפוקת קו, מיומנות משפרת איכות, ותק מפחית סיכון לשביתה.</div>
@@ -326,6 +327,24 @@ tr:hover td{background:#00000006}
      <button onclick="loan(20000)">הלוואה ₪20,000</button>
      <button onclick="loan(50000)">הלוואה ₪50,000</button>
      <button class="secondary" onclick="repay(10000)">החזר ₪10,000</button>
+    </div>
+   </div>
+
+   <div class="panel" data-req="bank">
+    <h2>📊 מניית החברה</h2>
+    <div id="preIpoBox">
+     <div class="muted">עדיין לא הנפקת את החברה בשוק ההון. הנפקה ראשונית (IPO) מוכרת 25% מהמניות לציבור תמורת מזומן מיידי, אבל מדללת את הבעלות שלך.</div>
+     <button style="margin-top:10px" onclick="doIPO()">בצע הנפקה (IPO)</button>
+    </div>
+    <div id="postIpoBox" hidden>
+     <div class="row"><span>מחיר מניה</span><b id="sharePrice">₪0</b></div>
+     <div class="row"><span>שווי שוק</span><b id="marketCap">₪0</b></div>
+     <div class="row"><span>הבעלות שלך</span><b id="ownerPct">100%</b></div>
+     <div class="controls" style="margin-top:10px">
+      <button class="secondary" onclick="buybackShares(1000)">רכישה חוזרת — 1,000 מניות</button>
+      <button class="secondary" onclick="issueShares(1000)">הנפקת מניות — 1,000</button>
+     </div>
+     <div class="muted" style="margin-top:8px">רכישה חוזרת מצמצמת את הצף ומייקרת את המניה תמורת מזומן; הנפקה מגייסת מזומן אך מדללת אותך ולוחצת את המחיר למטה.</div>
     </div>
    </div>
 
@@ -512,12 +531,17 @@ function genWorkerEntry(overrides){
  return {id:'W'+Math.random().toString(36).slice(2,8),name:WORKER_NAMES[Math.floor(Math.random()*WORKER_NAMES.length)],skill:70,speed:1,exp:20,wage:DEFAULT_WAGE,...overrides};
 }
 const CANDIDATE_POOL_SIZE=4;
-const rosterSpeedSum=()=>(game.roster||[]).reduce((s,w)=>s+((game.absentIds||[]).includes(w.id)?0:w.speed),0);
-const rosterAvgSkill=()=>{const r=game.roster||[]; return r.length?r.reduce((s,w)=>s+w.skill,0)/r.length:60};
+// ── עקומת למידה + עייפות: טירון לא מתפקד ביום הראשון כמו ותיק, וצוות ששחוק מאבד קצת מדיוק ומהירות. ──
+const RAMP_DAYS=6, RAMP_START=0.55;
+const rampFactor=w=>w.hiredDay==null?1:Math.min(1,RAMP_START+(game.day-w.hiredDay)/RAMP_DAYS*(1-RAMP_START));
+const fatigueFactor=w=>1-Math.max(0,(w.fatigue||0)-60)*0.006;
+const rosterSpeedSum=()=>(game.roster||[]).reduce((s,w)=>s+((game.absentIds||[]).includes(w.id)?0:w.speed*rampFactor(w)*fatigueFactor(w)),0);
+const rosterAvgSkill=()=>{const r=game.roster||[]; return r.length?r.reduce((s,w)=>s+w.skill*rampFactor(w)*fatigueFactor(w),0)/r.length:60};
 const rosterAvgExp=()=>{const r=game.roster||[]; return r.length?r.reduce((s,w)=>s+w.exp,0)/r.length:15};
-const rosterWageTotal=()=>(game.roster||[]).reduce((s,w)=>s+w.wage,0);
+const rosterAvgFatigue=()=>{const r=game.roster||[]; return r.length?r.reduce((s,w)=>s+(w.fatigue||0),0)/r.length:0};
+const rosterWageTotal=()=>(game.roster||[]).reduce((s,w)=>s+w.wage,0)*(game.benefits?1.12:1);
 function effectiveQuality(){
- return Math.max(50,Math.min(99,Math.round(game.quality+(rosterAvgSkill()-60)*0.25)));
+ return Math.max(50,Math.min(99,Math.round(game.quality+(rosterAvgSkill()-60)*0.25-Math.max(0,rosterAvgFatigue()-60)*0.1)));
 }
 
 const freshGame=(h2Name)=>({
@@ -535,10 +559,12 @@ const freshGame=(h2Name)=>({
  competitorBrands:assignCategoryBrands(),
  activeModelId:'H2', modelCounter:2,
  models:{
-  H2:{id:'H2',name:h2Name||'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0}
+  H2:{id:'H2',name:h2Name||'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0,adLevel:0}
  },
  founderCredit:18000, founderCreditStartDay:3,
- clearanceFund:0
+ clearanceFund:0,
+ benefits:false, lineWear:[0], demandIndex:2, competitionIndex:1,
+ stockIPODone:false, sharePrice:0, sharesTotal:100000, publicShares:0, playerShares:100000
 });
 // מלאי פתיחה מחושב לפי צריכת ההדרכה: 30 רחפני H2 סטנדרטיים.
 // זה כולל 20 רחפנים הנדרשים למדריך + עוד 10 כרזרבה, ולא ממלא את כל הווריאציות סתם.
@@ -553,8 +579,21 @@ function seedStarterStock(g){
 // כמויות רכש נגזרות מהמפרט: כמה רחפנים הקנייה מספיקה להם, ולא מספר שרירותי
 const BUY_BUILDS=10, EXPRESS_BUILDS=20;
 const DISPATCHER_WAGE=250, PROCURE_WAGE=200, MAINT_WAGE=300;
+const CORP_TAX_RATE=0.23; // מס חברות על רווח חודשי חיובי בלבד — כמו מס אמיתי, לא על מחזור
+const SEASON_LEN=60; // אורך מחזור עונתי בימי משחק
 // ── רכש עם זמן אספקה: הזמנה נכנסת ל-pendingDeliveries ומגיעה למחסן רק אחרי LEAD hours ──
 const PROCURE_LEAD_HOURS=6;
+// ── ספק תלוי-רמה: כל רמת רכיב (תקציבי..אקסטרים) מגיעה מספק אחר עם אמינות שונה. ──
+// זול = זמן אספקה ארוך ומשתנה, עם סיכוי לעיכוב נוסף. יקר = מהיר וכמעט תמיד בזמן.
+const TIER_LEAD_HOURS=[14,8,5,3], TIER_DELAY_CHANCE=[0.22,0.10,0.04,0.01];
+function tierIndexOf(v){return categoryByKey(v.category).variants.findIndex(x=>x.id===v.id)}
+function supplierLeadHours(id){
+ const tier=tierIndexOf(componentById(id));
+ let hours=TIER_LEAD_HOURS[tier]*(0.8+Math.random()*0.4);
+ if(Math.random()<TIER_DELAY_CHANCE[tier])hours*=1.8+Math.random();
+ return Math.max(2,Math.round(hours));
+}
+const supplierNameOf=v=>game.competitorBrands?.[v.category]||'הספק';
 function addHours(day,hour,add){const total=day*24+hour+add;return{day:Math.floor(total/24),hour:total%24}}
 function pendingQtyOf(id){return (game.pendingDeliveries||[]).filter(d=>!id||d.id===id).reduce((s,d)=>s+d.qty,0)}
 // כמות גדולה = הנחת כמות מדורגת, כמו הזמנה אמיתית מספק
@@ -629,7 +668,7 @@ function setLineModel(i,id){
  render();
 }
 // יצירת דגם משותפת: מפרט מתחיל כעותק של הדגם הנוכחי, סטטוס "הוכרז" (עריך), ותג סדרה אופציונלי.
-function spawnModel(name,seriesName){
+function spawnModel(name,seriesName,adLevel){
  const cost=7500;
  if(game.cash<cost){log('אין מספיק מזומן לפיתוח דגם חדש.');return null}
  setModelFinished(game.activeModelId,game.finished);
@@ -637,11 +676,11 @@ function spawnModel(name,seriesName){
  const id='M'+game.modelCounter++;
  const bom=Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,old?.bom?.[c.key]||c.variants[0].id]));
  changeFin(0,cost);
- game.models[id]={id,name,createdDay:game.day,bom,status:'announced',retireDay:null,clearanceUntil:null,sold:0,...(seriesName?{seriesName}:{})};
+ game.models[id]={id,name,createdDay:game.day,bom,status:'announced',retireDay:null,clearanceUntil:null,sold:0,adLevel:adLevel||0,...(seriesName?{seriesName}:{})};
  game.activeModelId=id; game.finished=0; game.finishedByModel[id]=0;
  return id;
 }
-// יצירת דגם אחת לכל: שם לדגם, ואם סדרות פתוחות — לאיזו סדרה הוא שייך (קיימת, חדשה, או בלי סדרה).
+// יצירת דגם אחת לכל: שם לדגם, ואם סדרות פתוחות — לאיזו סדרה הוא שייך (קיימת, חדשה, או בלי סדרה), ומה רמת השיווק הייעודית שלו.
 function createNewModel(){
  if(!has('modelShop'))return;
  if(game.cash<7500){log('אין מספיק מזומן לפיתוח דגם חדש.');return}
@@ -658,9 +697,22 @@ function createNewModel(){
    const trimmed=seriesRaw.trim().slice(0,18);
    if(trimmed)seriesName=existing.find(s=>s.toLowerCase()===trimmed.toLowerCase())||trimmed;
  }
- const id=spawnModel(name,seriesName);
+ let adLevel=0;
+ if(has('marketing')){
+   const options=AD.map((a,i)=>`${i}=${a.name} (${money(a.cost)}/יום)`).join(' · ');
+   const adRaw=prompt(`איזה שיווק ייעודי לדגם ${name}? ${options}`,'0');
+   if(adRaw===null)return;   // ביטול בשלב השיווק מבטל את כל היצירה
+   adLevel=Math.max(0,Math.min(AD.length-1,Math.round(+adRaw)||0));
+ }
+ const id=spawnModel(name,seriesName,adLevel);
  if(!id)return;
- log(seriesName?`🧬 ${name} הוכרז ושויך לסדרת ${seriesName}. אפשר לבחור רכיבים בסטודיו ולהשיק כשמוכן.`:`🆕 דגם ${name} הוכרז. אפשר לבחור רכיבים בסטודיו, ולחיצה על «השק דגם» תנעל את המפרט ותוציא אותו לשוק.`);
+ log(seriesName?`🧬 ${name} הוכרז ושויך לסדרת ${seriesName}, שיווק: ${AD[adLevel].name}. אפשר לבחור רכיבים בסטודיו ולהשיק כשמוכן.`:`🆕 דגם ${name} הוכרז, שיווק: ${AD[adLevel].name}. אפשר לבחור רכיבים בסטודיו, ולחיצה על «השק דגם» תנעל את המפרט ותוציא אותו לשוק.`);
+ render();
+}
+function setModelAd(id,level){
+ const m=game.models[id]; if(!m)return;
+ m.adLevel=Math.max(0,Math.min(AD.length-1,+level||0));
+ log(`📣 שיווק ${m.name} עודכן ל: ${AD[m.adLevel].name}.`);
  render();
 }
 function saveCurrentModel(){
@@ -727,6 +779,7 @@ function renderModels(){
       <h3>${m.name}${m.seriesName?` <span class="muted" style="font-size:10.5px;font-weight:600">· סדרת ${m.seriesName}</span>`:''}</h3>
       <div class="modelSpec">נוצר ביום ${m.createdDay} · עלות רכיבים ${money(modelMatCost(m))} · מחיר צפוי ${money(modelPriceEstimate(m))} · מלאי ${units}</div>
       <div class="modelSpec">מפרט: ${modelSpecScore(m)>=0?'+':''}${modelSpecScore(m)} נק׳ · ${m.status==='clearance'?'חלון עד יום '+m.clearanceUntil:''}</div>
+      ${has('marketing')&&m.status==='active'?`<div class="modelSpec">📣 שיווק ייעודי: <select onchange="setModelAd('${m.id}',this.value)" style="font-size:12px">${AD.map((a,i)=>`<option value="${i}"${i===(m.adLevel||0)?' selected':''}>${a.name} (${money(a.cost)}/יום)</option>`).join('')}</select></div>`:''}
       <div class="controls" style="margin-top:9px">${btn}</div>
     </div>`;
  }).join('');
@@ -785,7 +838,7 @@ const AD=[{cost:0,name:'כבוי'},{cost:250,name:'מקומי'},{cost:700,name:'
 
 // ── שלבי ההדרכה ──────────────────────────────────────────────
 // כל פיצ'ר נפתח בשלב שלו; has() שולט גם ב-UI (data-req) וגם בסימולציה.
-const UNLOCK={sales:2,orders:2,market:2,reputation:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,marketing:9,events:10,modelShop:11,modelSeries:12};
+const UNLOCK={sales:2,orders:2,market:2,reputation:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,marketing:9,events:10,modelShop:11,modelSeries:11};
 const MODEL_SHOP_MILESTONE=80;   // כמה רחפנים צריך לשלוח כדי לפתוח את שלב 11
 const has=f=>game.stage>=UNLOCK[f];
 
@@ -834,8 +887,8 @@ const STAGES=[null,
   b:'כל המערכות פתוחות: שוק משתנה, ספקים, אירועים אקראיים, הלוואות גדולות והשקעות.\n\nנשארו עוד שני שלבים: אחרי '+MODEL_SHOP_MILESTONE+' רחפנים ששלחת ללקוחות → נפתח סטודיו הדגמים, ותוכל לתכנן רחפן משלך.',
   task:'שלח '+MODEL_SHOP_MILESTONE+' רחפנים ללקוחות', prog:()=>game.shipped+'/'+MODEL_SHOP_MILESTONE, done:()=>game.shipped>=MODEL_SHOP_MILESTONE},
 
- {t:'רחפן מותאם אישית', icon:'🎨', target:'[onclick="createNewModel()"]',
-  b:'סטודיו הדגמים נפתח.\n\n«צור דגם חדש» → מפרט חדש, ובו בוחרים לכל אחת משש הקטגוריות רמה: תקציבי / סטנדרט / פרו / אקסטרים. ככל שחולף זמן במשחק → מתחרים משיקים דורות חדשים ונפתחות עוד רמות.\n\nעלות הרכיבים של הדגם → קובעת את המחיר שלקוחות משלמים: רחפן אקסטרים למקצוענים נמכר ביוקר, רחפן תקציבי לחובבנים נמכר בזול אבל בכמויות.\n\nאפשר להחזיק כמה דגמים פעילים במקביל — הזמנות חדשות מגיעות לכל אחד מהם — ולהחליף איזה דגם רץ עכשיו על הקו.',
+ {t:'רחפן מותאם אישית וסדרות מוצרים', icon:'🎨', target:'[onclick="createNewModel()"]',
+  b:'סטודיו הדגמים נפתח.\n\n«צור דגם חדש» → מפרט חדש, ובו בוחרים לכל אחת משש הקטגוריות רמה: תקציבי / סטנדרט / פרו / אקסטרים. ככל שחולף זמן במשחק → מתחרים משיקים דורות חדשים ונפתחות עוד רמות.\n\nעלות הרכיבים של הדגם → קובעת את המחיר שלקוחות משלמים: רחפן אקסטרים למקצוענים נמכר ביוקר, רחפן תקציבי לחובבנים נמכר בזול אבל בכמויות.\n\nאפשר להחזיק כמה דגמים פעילים במקביל, ולהחליף איזה דגם רץ כרגע על הקו.\n\nדגם חדש נוצר במצב "הוכרז" → אפשר לערוך בו רכיבים כרגיל, ולוחצים «השק דגם» → המפרט ננעל לתמיד, בדיוק כמו שחברה אמיתית לא מחליפה מנוע במוצר שכבר בשוק.\n\n«צור דגם חדש» שואל גם לאיזו סדרה הוא שייך: סדרה קיימת, שם חדש שפותח סדרה, או בלי סדרה בכלל — כל דגם בסדרה נוצר בנפרד ובזמן שאתה בוחר, לא כולם ביחד.',
   task:'צור דגם מותאם אישית ומכור ממנו',
   prog:()=>customModelSold()?'✅ הושלם':(Object.keys(game.models).length>1?'הדגם נוצר, עכשיו למכור':'עדיין לא נוצר דגם'),
   done:()=>customModelSold(),
@@ -844,13 +897,7 @@ const STAGES=[null,
    let unlocked=false;
    COMPONENT_CATEGORIES.forEach(c=>{if(game.componentGen[c.key]<1){game.componentGen[c.key]=1;unlocked=true}});
    if(unlocked)log('🏭 עד שהגעת לסטודיו, כל קטגוריה כבר קיבלה גם דור סטנדרט — יש בין מה לבחור.');
-  }},
-
- {t:'מפרט שננעל, וסדרות מוצרים', icon:'🔒', target:'[onclick="createNewModel()"]',
-  b:'שני עדכונים חשובים בסטודיו:\n\n1) דגם חדש נוצר במצב "הוכרז" → אפשר לערוך בו רכיבים כרגיל. לוחצים «השק דגם» → המפרט ננעל לתמיד, בדיוק כמו שחברה אמיתית לא מחליפה מנוע במוצר שכבר בשוק.\n\n2) «צור דגם חדש» שואל עכשיו גם לאיזו סדרה הוא שייך: סדרה קיימת (יוצגו האפשרויות), שם חדש שפותח סדרה, או בלי סדרה בכלל. כל דגם בסדרה נוצר בנפרד ובזמן שאתה בוחר — לא כולם ביחד, כמו השקה מדורגת אמיתית.',
-  task:'צור סדרת מוצרים והשק דגם אחד ממנה',
-  prog:()=>Object.values(game.models).some(m=>m.seriesName&&m.status==='active')?'✅ הושלם':(Object.values(game.models).some(m=>m.seriesName)?'הסדרה נוצרה, עכשיו להשיק דגם':'עדיין לא נוצרה סדרה'),
-  done:()=>false}
+  }}
 ];
 const customModelSold=()=>Object.values(game.models).some(m=>m.id!=='H2'&&(m.sold||0)>0);
 
@@ -1001,7 +1048,9 @@ function render(){
      :`<b>${lineModel(i).name}</b>`;
     const changing=game.lineChangeover[i]>0;
     const stateTxt=bad?'🔴 מושבת — נדרש טכנאי לתיקון':changing?`🟡 בכיוונון (עוד ${game.lineChangeover[i]} שעות)`:'🟢 תקין';
-    return `<div class="${(bad||changing)?'lineIssue':'muted'}">פס ${i+1}: ${stateTxt} · מצב ${Math.round(game.lineConditions[i])}% · מייצר ${pick}</div>`;
+    const w=(game.lineWear||[])[i]||0;
+    const wearWarn=w>50?' <span class="badge warn" title="בלאי סמוי גבוה: הפס יכול להתקלקל גם אם המצב נראה תקין">⚠️ סיכון תקלה מוסתר</span>':'';
+    return `<div class="${(bad||changing)?'lineIssue':'muted'}">פס ${i+1}: ${stateTxt} · מצב ${Math.round(game.lineConditions[i])}%${wearWarn} · מייצר ${pick}</div>`;
   }).join('');
   const rb=document.getElementById('repairBtn'); if(rb){rb.disabled=badLines===0 || !workHour() || game.workers<1 || game.strike; rb.textContent=badLines?`🛠️ תיקון פס (${badLines})`:'🛠️ אין פס תקול';}
  document.getElementById('capacityLine').textContent=(PER_CYCLE*WORK_HOURS*game.lines)+' רחפנים ליום (משמרת 08:00–20:00)';
@@ -1027,6 +1076,15 @@ function render(){
   }).join('');
  document.getElementById('marketPrice').textContent=money(game.marketPrice);
  document.getElementById('demand').textContent=['נמוך','בינוני','גבוה'][game.demand-1];
+ document.getElementById('benefitsBtn').textContent=game.benefits?'בטל':'הפעל — +12% שכר';
+ document.getElementById('benefitsBtn').className=game.benefits?'red':'';
+ document.getElementById('preIpoBox').hidden=game.stockIPODone;
+ document.getElementById('postIpoBox').hidden=!game.stockIPODone;
+ if(game.stockIPODone){
+   document.getElementById('sharePrice').textContent=money(game.sharePrice);
+   document.getElementById('marketCap').textContent=money(game.sharePrice*game.sharesTotal);
+   document.getElementById('ownerPct').textContent=Math.round(game.playerShares/game.sharesTotal*100)+'%';
+ }
  document.getElementById('debt').textContent=money(game.debt);
  document.getElementById('dailyPay').textContent=money(game.debt>0?Math.max(200,game.debt*0.02):0);
  {const lev=game.debt/Math.max(1,game.cash+game.debt);document.getElementById('intRate').textContent=(0.15*(1+lev*1.5)).toFixed(2)+'%';}
@@ -1055,6 +1113,7 @@ function load(){
   if(!d||!d.game)return false;
   const isOldBom=!!d.game.stock&&!ALL_COMPONENTS.every(v=>Object.prototype.hasOwnProperty.call(d.game.stock,v.id));
   Object.assign(game,freshGame(),d.game);   // שדות חדשים מקבלים ברירת מחדל
+   game.stage=Math.min(game.stage,STAGES.length-1);   // הדרכה ששונתה בעדכון — לא ליפול משלב שכבר לא קיים
    game.lineIssues=Array.from({length:game.lines},(_,i)=>!!(d.game.lineIssues||[])[i]);
    while(game.lineIssues.length<game.lines)game.lineIssues.push(false);
    game.lineBuffers=Array.from({length:game.lines},(_,i)=>+(d.game.lineBuffers||[])[i]||0);
@@ -1201,6 +1260,10 @@ function toggleProduction(){
  log(workHour()?'קו ההרכבה הופעל.':'קו ההרכבה נדלק. הוא ימתין בשקט וישרת ייצור אוטומטית כשהמשמרת תתחיל ב-08:00.');
  render()
 }
+function wearMul(idx){
+ const w=(game.lineWear||[])[idx]||0;
+ return 1+Math.pow(Math.max(0,w-40)/40,2)*2; // בלאי מעל 40 מקפיץ סיכון תקלה לא-לינארית, עד פי 3
+}
 function maintain(){
  // הכפתור מכייל תמיד את הפס הכי גרוע, כדי שלא צריך בורר קווים נפרד
  const idx=worstLineIdx();
@@ -1209,8 +1272,10 @@ function maintain(){
  changeFin(0,cost);
  game.lineConditions[idx]=Math.min(100,(game.lineConditions[idx]??100)+35);
  game.condition=Math.round(game.lineConditions.reduce((s,c)=>s+c,0)/Math.max(1,game.lineConditions.length));
+ game.lineWear=game.lineWear||[]; const hadWear=(game.lineWear[idx]||0)>40;
+ game.lineWear[idx]=(game.lineWear[idx]||0)*0.5; // כיול משפר את המצב הנראה, אבל לא מנקה את הבלאי הסמוי לגמרי
  game.repairs++;
- log(`🔧 בוצע כיול ותחזוקה לפס ${idx+1} תמורת ${money(cost)}. מצב הפס עלה ל-${Math.round(game.lineConditions[idx])}%.`);render()
+ log(`🔧 בוצע כיול ותחזוקה לפס ${idx+1} תמורת ${money(cost)}. מצב הפס עלה ל-${Math.round(game.lineConditions[idx])}%.`+(hadWear?' בלאי סמוי שהצטבר צומצם, אך לא נעלם — תחזוקה מונעת סדירה תמנע הפתעות.':''));render()
 }
 function buyVariant(id,forcedQty){
  const v=componentById(id); if(!v)return;
@@ -1219,10 +1284,11 @@ function buyVariant(id,forcedQty){
  if(stored()+pendingQtyOf()+qty>game.capacity){log('אין מספיק מקום במחסן (כולל הזמנות בדרך).');return}
  if(game.cash+game.founderCredit<gross){log(`אין מספיק משאבים לרכישת ${v.name}.`);return}
  const charge=materialCharge(gross);
- const arr=addHours(game.day,game.hour,PROCURE_LEAD_HOURS);
+ const lead=supplierLeadHours(id);
+ const arr=addHours(game.day,game.hour,lead);
  game.pendingDeliveries.push({id,qty,arriveDay:arr.day,arriveHour:arr.hour});
  game.partsBought+=qty;
- log(`📦 הוזמנו ${qty}× ${v.name} ב-${money(charge.net)}${charge.credit?' (קרדיט השקה: '+money(charge.credit)+')':''} — יגיעו למחסן בעוד כ-${PROCURE_LEAD_HOURS} שעות.`);
+ log(`📦 הוזמנו ${qty}× ${v.name} מ${supplierNameOf(v)} ב-${money(charge.net)}${charge.credit?' (קרדיט השקה: '+money(charge.credit)+')':''} — יגיעו למחסן בעוד כ-${lead} שעות.`);
  render();
 }
 function buyPart(key){
@@ -1322,9 +1388,13 @@ function expressOrder(){
  const gross=expressCost(plan);
  if(game.cash+game.founderCredit<gross){log('אין מספיק כסף/קרדיט להזמנה המרוכזת.');return}
  const charge=materialCharge(gross);
- const arr=addHours(game.day,game.hour,PROCURE_LEAD_HOURS);
- plan.forEach(x=>{game.pendingDeliveries.push({id:x.id,qty:x.qty,arriveDay:arr.day,arriveHour:arr.hour});game.partsBought+=x.qty});
- log(`✈️ הוזמן משלוח מרוכז: רכיבים ל-${EXPRESS_BUILDS} רחפנים מהמפרט הפעיל. עלות נטו ${money(charge.net)}, יגיע בעוד כ-${PROCURE_LEAD_HOURS} שעות.`);
+ let maxLead=0;
+ plan.forEach(x=>{
+   const lead=supplierLeadHours(x.id); maxLead=Math.max(maxLead,lead);
+   const arr=addHours(game.day,game.hour,lead);
+   game.pendingDeliveries.push({id:x.id,qty:x.qty,arriveDay:arr.day,arriveHour:arr.hour});game.partsBought+=x.qty;
+ });
+ log(`✈️ הוזמן משלוח מרוכז: רכיבים ל-${EXPRESS_BUILDS} רחפנים מהמפרט הפעיל. עלות נטו ${money(charge.net)}, כל ספק שולח בזמן שלו — האחרון יגיע בעוד כ-${maxLead} שעות.`);
  render();
 }
 function hireCandidate(id){
@@ -1333,7 +1403,7 @@ function hireCandidate(id){
  const signCost=Math.round(800+c.skill*8+c.speed*300);
  if(game.cash<signCost){log(`אין מספיק מזומן לחתום עם ${c.name} (${money(signCost)}).`);return}
  changeFin(0,signCost);
- game.roster.push({id:c.id,name:c.name,wage:c.wage,skill:c.skill,speed:c.speed,exp:c.exp});
+ game.roster.push({id:c.id,name:c.name,wage:c.wage,skill:c.skill,speed:c.speed,exp:c.exp,hiredDay:game.day,fatigue:0});
  game.workers=game.roster.length;
  game.candidates.splice(idx,1,genCandidate());
  log(`👷 ${c.name} התקבל/ה לעבודה — מהירות ${c.speed}×, מיומנות ${c.skill}, ותק ${c.exp}. שכר ${money(c.wage)}/יום, עלות חתימה ${money(signCost)}.`);
@@ -1388,6 +1458,47 @@ function declineRaise(){
 function loan(sum){
  if(game.debt+sum>200000){log('הבנק לא מאשר חוב גבוה מ-₪200,000.');return}
  game.cash+=sum;game.debt+=sum;log(`🏦 התקבלה הלוואה של ${money(sum)}. החוב הכולל: ${money(game.debt)}.`);render()
+}
+function toggleBenefits(){
+ game.benefits=!game.benefits;
+ log(game.benefits?'🩺 נוספו ביטוח בריאות ופנסיה לצוות (+12% על השכר) — מוריד סיכון עזיבה ושביתה.':'הוצאו הטבות בריאות ופנסיה מהצוות.');
+ render();
+}
+// ── שוק ההון: מחיר המניה נגזר משילוב של מזומן, רווח יומי, מוניטין ושיעור הצף — לא מספר קבוע. ──
+function stockValuationTarget(){
+ const floatRatio=game.publicShares/Math.max(1,game.sharesTotal);
+ const earningsSignal=Math.max(-1,Math.min(2,(game.dayRevenue-game.dayExpenses)/2000));
+ const repSignal=(game.rep-50)/50;
+ const base=Math.max(0.2,game.cash)/game.sharesTotal*3;
+ return Math.max(0.5,base*(1+earningsSignal*0.4+repSignal*0.25)*(1-floatRatio*0.15));
+}
+function updateStockPrice(){
+ game.sharePrice=Math.max(0.5,+(game.sharePrice*0.7+stockValuationTarget()*0.3).toFixed(2));
+}
+function doIPO(){
+ if(game.stockIPODone)return;
+ const sharesSold=Math.round(game.sharesTotal*0.25);
+ game.sharePrice=+(Math.max(0.2,game.cash)/game.sharesTotal*3).toFixed(2);
+ const proceeds=Math.round(sharesSold*game.sharePrice);
+ game.publicShares+=sharesSold; game.playerShares-=sharesSold; game.stockIPODone=true;
+ changeFin(proceeds,0);
+ log(`📊 הנפקה ראשונית (IPO): נמכרו ${sharesSold.toLocaleString('he-IL')} מניות (25%) לציבור במחיר ${money(game.sharePrice)} למניה — גויסו ${money(proceeds)}.`);
+ render();
+}
+function buybackShares(n){
+ if(!game.stockIPODone||n>game.publicShares){log('אין מספיק מניות בציבור לרכישה חוזרת.');return}
+ const cost=Math.round(n*game.sharePrice*1.05);
+ if(game.cash<cost){log('אין מספיק מזומן לרכישה חוזרת.');return}
+ changeFin(0,cost); game.publicShares-=n; game.playerShares+=n;
+ log(`📈 רכישה חוזרת של ${n.toLocaleString('he-IL')} מניות תמורת ${money(cost)}. הבעלות שלך עלתה ל-${Math.round(game.playerShares/game.sharesTotal*100)}%.`);
+ render();
+}
+function issueShares(n){
+ if(!game.stockIPODone)return;
+ const proceeds=Math.round(n*game.sharePrice*0.95);
+ changeFin(proceeds,0); game.sharesTotal+=n; game.publicShares+=n;
+ log(`📉 הונפקו ${n.toLocaleString('he-IL')} מניות חדשות תמורת ${money(proceeds)} — הבעלות שלך דוללה ל-${Math.round(game.playerShares/game.sharesTotal*100)}%.`);
+ render();
 }
 function repay(sum){
  sum=Math.min(sum,game.debt);
@@ -1488,10 +1599,11 @@ function autoProcure(){
    const gross=Math.round(batch*variantCost(v.id)*bulkDiscountMul(batch))+400;
    if(game.cash+game.founderCredit<gross)return;
    const charge=materialCharge(gross);
-   const arr=addHours(game.day,game.hour,PROCURE_LEAD_HOURS);
+   const lead=supplierLeadHours(id);
+   const arr=addHours(game.day,game.hour,lead);
    game.pendingDeliveries.push({id,qty:batch,arriveDay:arr.day,arriveHour:arr.hour});
    game.partsBought+=batch;
-   log(`📦 מנהל הרכש הזמין ${batch}× ${v.name} תמורת ${money(charge.net)}${charge.credit?' (קרדיט '+money(charge.credit)+')':''} — יגיע בעוד כ-${PROCURE_LEAD_HOURS} שעות, לפי רזרבת ביטחון.`);
+   log(`📦 מנהל הרכש הזמין ${batch}× ${v.name} מ${supplierNameOf(v)} תמורת ${money(charge.net)}${charge.credit?' (קרדיט '+money(charge.credit)+')':''} — יגיע בעוד כ-${lead} שעות, לפי רזרבת ביטחון.`);
  });
 }
 function skipDay(){
@@ -1536,9 +1648,14 @@ function orderCeiling(m,days){
  return Math.max(5,Math.min(game.capacity,buildable,affordable));
 }
 function genOrder(){
- // הזמנות מגיעות לדגם פעיל אקראי; דגם עם רכיבים יקרים נמכר ביוקר
+ // הזמנות מגיעות לדגם פעיל; דגם עם רכיבים יקרים נמכר ביוקר, ודגם עם שיווק ייעודי גבוה יותר נבחר בסבירות גבוהה יותר
  const actives=Object.values(game.models).filter(x=>x.status==='active');
- const m=actives[Math.floor(Math.random()*actives.length)]||currentModel();
+ let m=currentModel();
+ if(actives.length){
+   const weighted=actives.map(x=>({x,w:1+(x.adLevel||0)*0.4}));
+   let r=Math.random()*weighted.reduce((s,y)=>s+y.w,0);
+   for(const y of weighted){r-=y.w;if(r<=0){m=y.x;break}}
+ }
  const isContract=has('orders')&&Math.random()<0.25;
  const days=isContract?10+Math.floor(Math.random()*10):4+Math.floor(Math.random()*6);
  const repMul=has('reputation')?0.6+game.rep/100*0.8:1;
@@ -1575,6 +1692,8 @@ function closeDay(){
  }
  if(exp)changeFin(0,exp);
 
+ if(has('bank')&&game.stockIPODone)updateStockPrice();
+
  if(game.stage===5&&game.dayRevenue>game.dayExpenses&&game.dayRevenue>0){
    log(`📗 סיימת את היום ברווח של ${money(game.dayRevenue-game.dayExpenses)}.`);
    game.dayRevenue=0;game.dayExpenses=0;advance();return;
@@ -1585,18 +1704,26 @@ function closeDay(){
    game.lineConditions=Array.from({length:game.lines},(_,i)=>+(game.lineConditions||[])[i]??100);
    // כל פס נשחק בנפרד: פס שעבד היום נשחק יותר מפס שעמד
    game.lineConditions=game.lineConditions.map((c,i)=>Math.max(0,c-(game.production&&!game.lineIssues[i]?(1.7+Math.random()*1.4):0.4)));
-   if(game.production&&Math.random()<0.04){
-     const idx=Math.floor(Math.random()*game.lines);
+   // תחזוקה מונעת: פס ששמור מעל 85% מצב לאורך זמן מתאושש גם מבלאי סמוי; פס מוזנח לא
+   game.lineWear=Array.from({length:game.lines},(_,i)=>+(game.lineWear||[])[i]||0);
+   game.lineWear=game.lineWear.map((w,i)=>game.lineConditions[i]>=85?Math.max(0,w-1.5):w);
+   const idx=Math.floor(Math.random()*game.lines);
+   if(game.production&&Math.random()<0.04*wearMul(idx)){
      game.lineConditions[idx]=Math.max(5,game.lineConditions[idx]-12);
      triggerLineBreakdown(idx);
    }
    game.condition=Math.round(game.lineConditions.reduce((s,c)=>s+c,0)/Math.max(1,game.lineConditions.length));
  }
  if(has('market')){
-   game.demand=Math.max(1,Math.min(3,game.demand+(Math.random()<.5?(Math.random()<.5?-1:1):0)));
+   // ביקוש עונתי: גל בסיס לפי מחזור עונה + רעש יומי, לא הליכה אקראית טהורה — כדי שיהיה אפשר לחזות ולתכנן ייצור מראש
+   const seasonTarget=2+Math.sin((game.day/SEASON_LEN)*2*Math.PI)*0.85;
+   game.demandIndex=Math.max(1,Math.min(3,+(( (game.demandIndex??2)*0.85+seasonTarget*0.15+(Math.random()*0.3-0.15) )).toFixed(2)));
+   game.demand=Math.max(1,Math.min(3,Math.round(game.demandIndex)));
+   // תחרות: "שחקנים" וירטואליים לוחצים על המחיר בהליכה עם חזרה לממוצע, לא קבועים לנצח
+   game.competitionIndex=Math.max(0.75,Math.min(1.3,(game.competitionIndex??1)+(1-(game.competitionIndex??1))*0.08+(Math.random()*0.06-0.03)));
    updateComponentMarkets();
    const liveComponentFactor=Math.max(0.72,Math.min(1.42,game.componentMarketIndex/100));
-   const margin=1.18+game.demand*0.07+(Math.random()*0.08-0.04);
+   const margin=(1.18+game.demand*0.07+(Math.random()*0.08-0.04))/game.competitionIndex;
    // מכירות גדולות שלך ביום שעבר מרככות את המחיר, כמו הצפת שוק אמיתית
    const sellPressure=Math.max(0,Math.min(0.18,(game.daySoldUnits||0)/300));
    const target=STD_MAT_COST*liveComponentFactor*margin*(1-sellPressure);
@@ -1613,25 +1740,47 @@ function closeDay(){
      }
      return true;
    });
-   // סיכוי להזמנה חדשה ליום: בסיס + בונוס פרסום, מוגבל למספר הזמנות פתוחות
+   // תחרות אגרסיבית: לקוח עם הזמנה פתוחה עלול לעבור למתחרה שהציע מחיר טוב יותר
+   if(has('market')&&orders.length&&game.competitionIndex>1.12&&Math.random()<0.05){
+     const victim=orders[Math.floor(Math.random()*orders.length)];
+     const brand=COMPETITOR_BRANDS[Math.floor(Math.random()*COMPETITOR_BRANDS.length)];
+     orders=orders.filter(o=>o.id!==victim.id);
+     log(`⚔️ ${victim.client} ביטלו את ההזמנה (${victim.qty} יח׳) — ${brand} הציעו מחיר תחרותי יותר.`);
+   }
+   // סיכוי להזמנה חדשה ליום: בסיס + בונוס פרסום + ביקוש עונתי, מרוסן ע"י תחרות, מוגבל למספר הזמנות פתוחות
    const adBonus=has('marketing')?[0,0.12,0.25,0.42,0.55,0.68][game.adLevel]:0;
+   const demandBonus=has('market')?(game.demand-2)*0.12:0;
+   const compPenalty=has('market')?Math.max(0,game.competitionIndex-1)*0.25:0;
    const maxOpen=(has('expansion')?5:3)*3;
-   for(let i=0;i<3;i++)if(orders.length<maxOpen&&Math.random()<0.55+adBonus)genOrder();
+   for(let i=0;i<3;i++)if(orders.length<maxOpen&&Math.random()<0.55+adBonus+demandBonus-compPenalty)genOrder();
    if(has('marketing')&&game.adLevel>0&&orders.length<maxOpen+2&&Math.random()<adBonus)genOrder();
  }
  if(has('marketing')&&game.adLevel>0)changeFin(0,AD[game.adLevel].cost);
+ if(has('marketing')){
+   // כל דגם עם שיווק ייעודי משלם את התקציב היומי שלו בנפרד מהשיווק הכללי
+   const perModelAdCost=Object.values(game.models).filter(x=>x.status==='active'&&(x.adLevel||0)>0).reduce((s,x)=>s+AD[x.adLevel].cost,0);
+   if(perModelAdCost)changeFin(0,perModelAdCost);
+ }
  if(game.day%30===0){
-   log(`📅 סוף חודש. רווח/הפסד: ${money(game.monthRevenue-game.monthExpenses)}.`);
+   const profit=game.monthRevenue-game.monthExpenses;
+   let taxTxt='';
+   if(has('bank')&&profit>0){
+     const tax=Math.round(profit*CORP_TAX_RATE);
+     changeFin(0,tax);
+     taxTxt=` מס חברות (${Math.round(CORP_TAX_RATE*100)}%) שולם: ${money(tax)}.`;
+   }
+   log(`📅 סוף חודש. רווח/הפסד: ${money(profit)}.`+taxTxt);
    game.monthRevenue=0;game.monthExpenses=0;
  }
  if(has('workers')&&game.roster.length>0){
    // ותק שצומח: עובד ותיק משתפר לאט עם הזמן, מה שגם מצדיק העלאות שכר טבעיות
-   game.roster.forEach(w=>{w.exp=Math.min(99,+(w.exp+0.06).toFixed(2));w.skill=Math.min(99,+(w.skill+0.03).toFixed(2))});
-   // עזיבה יזומה: עובד מיומן ששכרו נמוך משמעותית מהציפייה בשוק עלול לעזוב למתחרה (סיכוי נמוך מאוד)
+   game.roster.forEach(w=>{w.exp=Math.min(99,+(w.exp+0.06).toFixed(2));w.skill=Math.min(99,+(w.skill+0.03).toFixed(2));w.fatigue=Math.max(0,(w.fatigue||0)-8)});
+   // עזיבה יזומה: עובד מיומן ששכרו נמוך משמעותית מהציפייה בשוק עלול לעזוב למתחרה (סיכוי נמוך מאוד; הטבות מרגיעות)
    const before=game.roster.length;
+   const quitMul=game.benefits?0.4:1;
    game.roster=game.roster.filter(w=>{
      const expected=300+w.skill*2.2+w.speed*180+w.exp*2.3;
-     if(w.wage<expected*0.8&&Math.random()<0.003){
+     if(w.wage<expected*0.8&&Math.random()<0.003*quitMul){
        log(`👋 ${w.name} עזב/ה למתחרה ששילם יותר (שכר היה ${money(w.wage)}, ציפייה בשוק ${money(Math.round(expected))}).`);
        return false;
      }
@@ -1656,10 +1805,21 @@ function closeDay(){
        [{label:'אשר העלאה (+12%)',fn:'grantRaise()'},{label:'דחה בינתיים',fn:'declineRaise()'}]);
    }
  }else if(has('workers')&&game.raiseRequest&&!game.strike&&game.day-game.raiseRequest.day>=3){
-   game.strike=true;game.raiseRequest=null;
-   log('✊ הבקשה להעלאת שכר לא נענתה בזמן — הטכנאים שובתים.');
-   openEventModal('✊ שביתה!','הבקשה להעלאת שכר לא נענתה בזמן. הצוות שובת ולא יעבוד עד אישור.',
-     [{label:'אשר העלאת שכר (+12%)',fn:'grantRaise()'}]);
+   // אחרי המתנה, לא כל בקשה מסלימה לשביתה: לפעמים הצוות מוותר, לפעמים מתפשר על פחות, ולפעמים באמת שובת
+   const outcome=Math.random();
+   if(outcome<0.35){
+     game.raiseRequest=null;
+     log('🤝 הצוות ויתר על הדרישה בינתיים והמשיך לעבוד כרגיל — הנושא לא נעלם, רק נדחה.');
+   }else if(outcome<0.65){
+     game.roster.forEach(w=>w.wage=Math.round(w.wage*1.06));
+     game.raiseRequest=null;
+     log(`🤝 פשרה: הצוות הסכים להעלאה חלקית של 6% בלי לשבות. שכר יומי כולל עכשיו: ${money(rosterWageTotal())}.`);
+   }else{
+     game.strike=true;game.raiseRequest=null;
+     log('✊ הבקשה להעלאת שכר לא נענתה בזמן — הטכנאים שובתים.');
+     openEventModal('✊ שביתה!','הבקשה להעלאת שכר לא נענתה בזמן. הצוות שובת ולא יעבוד עד אישור.',
+       [{label:'אשר העלאת שכר (+12%)',fn:'grantRaise()'}]);
+   }
  }
  if(has('materials'))checkComponentUnlocks();
  clearanceAuto();
@@ -1685,6 +1845,8 @@ function produceHour(rate=1){
  if(!enoughWorkers())return;
  game.lineBuffers=Array.from({length:game.lines},(_,i)=>+(game.lineBuffers||[])[i]||0);
  game.lineConditions=Array.from({length:game.lines},(_,i)=>+(game.lineConditions||[])[i]??100);
+ game.lineWear=Array.from({length:game.lines},(_,i)=>+(game.lineWear||[])[i]||0);
+ if(has('workers'))(game.roster||[]).forEach(w=>{if(!(game.absentIds||[]).includes(w.id))w.fatigue=Math.min(100,(w.fatigue||0)+1.2*rate)});
  for(let i=0;i<game.lines;i++){
    if(game.lineIssues[i]||(game.lineChangeover&&game.lineChangeover[i]>0))continue;
    const m=lineModel(i), bom=m.bom;
@@ -1706,7 +1868,11 @@ function produceHour(rate=1){
    }
  }
  if(has('breakdowns')){
-   for(let i=0;i<game.lines;i++)if(!game.lineIssues[i])game.lineConditions[i]=Math.max(0,game.lineConditions[i]-0.4*rate);
+   for(let i=0;i<game.lines;i++)if(!game.lineIssues[i]){
+     game.lineConditions[i]=Math.max(0,game.lineConditions[i]-0.4*rate);
+     // בלאי סמוי: נצבר גם כשהמצב הנראה תקין, ולא נעלם בכיול חלקי — לכן קו "בריא על הנייר" יכול עדיין להתפוצץ
+     game.lineWear[i]=Math.min(100,game.lineWear[i]+0.5*rate);
+   }
    game.condition=Math.round(game.lineConditions.reduce((s,c)=>s+c,0)/Math.max(1,game.lineConditions.length));
  }
 }
@@ -1766,7 +1932,7 @@ function tick(){
  if(has('breakdowns')&&game.lines>0){
    const p=workHour()?0.012:0.005;
    for(let i=0;i<game.lines;i++){
-     if(!game.lineIssues[i]&&Math.random()<p/game.lines)triggerLineBreakdown(i);
+     if(!game.lineIssues[i]&&Math.random()<(p*wearMul(i))/game.lines)triggerLineBreakdown(i);
    }
  }
  if(game.lineChangeover){
