@@ -474,6 +474,7 @@ const COMPONENT_CATEGORIES=[
 const PARTS=COMPONENT_CATEGORIES.map(c=>({key:c.key,name:c.name,per:c.per,base:c.variants[1].base,desc:c.variants[1].desc}));
 const ALL_COMPONENTS=COMPONENT_CATEGORIES.flatMap(c=>c.variants.map(v=>({...v,category:c.key,categoryName:c.name,per:c.per})));
 const componentById=id=>ALL_COMPONENTS.find(v=>v.id===id);
+const isNoneVariant=id=>componentById(id).base===0; // "ללא" — לא רכיב פיזי, אין להזמין/לצרוך/לחסום עליו
 const categoryByKey=key=>COMPONENT_CATEGORIES.find(c=>c.key===key);
 const defaultBom=()=>Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,c.variants[0].id]));
 const variantCost=id=>Math.round(game?.componentPrices?.[id]||componentById(id)?.base||0);
@@ -1243,7 +1244,7 @@ function blockedReason(){
    const usable=Array.from({length:game.lines},(_,i)=>i).filter(i=>!game.lineIssues[i]);
    const shortPerLine=usable.map(i=>{
      const bom=lineModel(i).bom;
-     const c=COMPONENT_CATEGORIES.find(c=>(game.stock[bom[c.key]]||0)<c.per);
+     const c=COMPONENT_CATEGORIES.find(c=>!isNoneVariant(bom[c.key])&&(game.stock[bom[c.key]]||0)<c.per);
      return c?componentById(bom[c.key]).name:null;
    });
    if(usable.length&&shortPerLine.every(Boolean))return `נגמר המלאי של ${shortPerLine[0]}.`;
@@ -1582,7 +1583,7 @@ function autoProcure(){
  const need={};
  for(let i=0;i<game.lines;i++){
    const bom=lineModel(i).bom;
-   COMPONENT_CATEGORIES.forEach(c=>{need[bom[c.key]]=(need[bom[c.key]]||0)+c.per*PER_CYCLE});
+   COMPONENT_CATEGORIES.forEach(c=>{if(!isNoneVariant(bom[c.key]))need[bom[c.key]]=(need[bom[c.key]]||0)+c.per*PER_CYCLE});
  }
  // מדיניות "נקודת הזמנה / רמת יעד": מזמינים כשיורדים מתחת לרזרבת ביטחון (לא כשמגיעים לאפס),
  // ותמיד עד רמת יעד גבוהה יותר — כך שיש ספייר אמיתי, ופחות הזמנות קטנות שכל אחת סוחבת ₪400 משלוח.
@@ -1853,9 +1854,9 @@ function produceHour(rate=1){
    game.lineBuffers[i]+=rate;
    while(game.lineBuffers[i]>=PER_CYCLE){
      if(stored()>=game.capacity){game.lineBuffers[i]=0;break}
-     const lacking=has('materials')?COMPONENT_CATEGORIES.find(c=>(game.stock[bom[c.key]]||0)<c.per):null;
+     const lacking=has('materials')?COMPONENT_CATEGORIES.find(c=>!isNoneVariant(bom[c.key])&&(game.stock[bom[c.key]]||0)<c.per):null;
      if(lacking){game.lineBuffers[i]=0;break}
-     if(has('materials'))COMPONENT_CATEGORIES.forEach(c=>game.stock[bom[c.key]]-=c.per);
+     if(has('materials'))COMPONENT_CATEGORIES.forEach(c=>{if(!isNoneVariant(bom[c.key]))game.stock[bom[c.key]]-=c.per});
      game.lineBuffers[i]-=PER_CYCLE;
      if(has('quality')){
        // רכיב מדור ישן/מופסק בדגם הזה מוסיף סיכון תקלה משלו, לא רק האיכות הגלובלית
