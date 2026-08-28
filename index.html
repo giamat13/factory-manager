@@ -68,7 +68,7 @@ input:focus,select:focus{outline:2px solid #b8402a55;border-color:var(--accent)}
 .machine .box{border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;background:var(--panel-2)}
 .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;background:var(--panel-2);border:1px solid var(--line);color:var(--muted);margin-inline-end:5px;letter-spacing:.1px}
 .badge.ok{background:var(--green-soft);border-color:var(--green);color:var(--green)}.badge.warn{background:var(--amber-soft);border-color:var(--accent);color:var(--accent-ink)}.badge.bad{background:var(--red-soft);border-color:var(--red);color:var(--red)}
-table{width:100%;border-collapse:collapse;font-size:13px}
+table{width:100%;min-width:520px;border-collapse:collapse;font-size:13px}
 th,td{text-align:right;padding:9px 8px;border-bottom:1px solid var(--line)}
 th{color:var(--muted);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;border-bottom:2px solid var(--ink)}
 tr:hover td{background:#00000006}
@@ -103,7 +103,7 @@ tr:hover td{background:#00000006}
 @keyframes tutBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(5px)}}
 .task{background:var(--accent);border:1px solid var(--ink);color:#fdf3ea;border-radius:var(--radius-sm);padding:11px 13px;font-size:14px;font-weight:700;margin-bottom:17px}
 @media(max-width:1050px){.layout{grid-template-columns:1fr}}
-@media(max-width:650px){.grid3,.machine{grid-template-columns:1fr}}
+@media(max-width:650px){.grid3,.machine{grid-template-columns:1fr}.topin{flex-wrap:wrap}h1{font-size:22px}.top{padding:14px 16px}}
 
 /* ── רכיבים ודגמים חדשים ───────────────────────────────────────── */
 .modelStudio{margin-top:2px}
@@ -254,8 +254,8 @@ tr:hover td{background:#00000006}
      <button id="dispatchBtn" onclick="toggleDispatcher()">העסק — ₪250/יום</button>
     </div>
     <div class="notice">במלאי כרגע: <b id="stockHint">0</b> רחפנים מוכנים. שולחים הזמנה רק כשכל הכמות נמצאת במלאי, אין משלוחים חלקיים, ולכן הכפתור מראה כמה רחפנים עוד חסרים.</div>
-    <table><thead><tr><th>לקוח</th><th>רחפנים</th><th>מחיר ליח׳</th><th>סה״כ</th><th>דדליין</th><th></th></tr></thead>
-    <tbody id="orders"></tbody></table>
+    <div style="overflow-x:auto"><table><thead><tr><th>לקוח</th><th>רחפנים</th><th>מחיר ליח׳</th><th>סה״כ</th><th>דדליין</th><th></th></tr></thead>
+    <tbody id="orders"></tbody></table></div>
     <div class="muted" id="ordersEmpty" style="padding-top:8px">אין כרגע הזמנות פתוחות.</div>
    </div>
 
