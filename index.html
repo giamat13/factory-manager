@@ -154,7 +154,7 @@ tr:hover td{background:#00000006}
 <body>
 <div class="top">
  <div class="topin">
-  <div><h1 id="companyName">🛸 Factory Manager</h1><div class="muted">מפעל להרכבת רחפני צילום</div></div>
+  <div><h1 id="companyName" onclick="renameCompany()" style="cursor:pointer" title="לחץ לשינוי שם החברה">🛸 Factory Manager</h1><div class="muted">מפעל להרכבת רחפני צילום</div></div>
   <div class="controls">
    <select id="slotSel" onchange="switchSlot(+this.value)" title="שלושה משחקים נפרדים, כל אחד עם ההתקדמות שלו"></select>
    <button class="secondary" onclick="pauseGame()" id="pauseBtn">השהה</button>
@@ -1213,6 +1213,15 @@ function switchSlot(n){
  document.getElementById('tut').hidden=true;
  if(load()){render();renderLog();renderSlots();if(game.tutOpen)showTut();}
  else{startFresh();renderSlots()}
+}
+function renameCompany(){
+ const raw=prompt('שם חדש לחברה:',game.companyName||'Factory Manager');
+ if(raw===null)return;
+ const name=raw.trim().slice(0,30);
+ if(!name)return;
+ game.companyName=name;
+ log(`🏷️ שם החברה שונה ל-${name}.`);
+ render();
 }
 function resetGame(){
  if(!confirm(`לאפס את משחק ${slot}? ההתקדמות בו תימחק.`))return;
