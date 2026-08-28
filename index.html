@@ -158,6 +158,7 @@ tr:hover td{background:#00000006}
   <div class="controls">
    <select id="slotSel" onchange="switchSlot(+this.value)" title="שלושה משחקים נפרדים, כל אחד עם ההתקדמות שלו"></select>
    <button class="secondary" onclick="pauseGame()" id="pauseBtn">השהה</button>
+   <button class="secondary" onclick="manualSave()">💾 שמור</button>
    <button class="secondary" onclick="skipDay()">דלג יום</button>
    <button class="secondary" onclick="skipTutorial()" id="skipBtn">דלג על ההדרכה</button>
    <button class="secondary" onclick="resetGame()">אפס משחק</button>
@@ -1089,6 +1090,7 @@ function render(){
 let slot=+(localStorage.getItem('fm-slot')||1);
 const slotKey=n=>'fm-save-'+n;
 function save(){try{localStorage.setItem(slotKey(slot),JSON.stringify({game,orders,nextId}))}catch(e){}}
+function manualSave(){save();log('💾 המשחק נשמר.');render()}
 function load(){
  try{
   const d=JSON.parse(localStorage.getItem(slotKey(slot))||'null');
