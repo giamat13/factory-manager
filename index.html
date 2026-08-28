@@ -329,6 +329,12 @@ tr:hover td{background:#00000006}
      <button onclick="loan(50000)">הלוואה ₪50,000</button>
      <button class="secondary" onclick="repay(10000)">החזר ₪10,000</button>
     </div>
+    <div class="row" style="margin-top:10px"><span>חיסכון</span><b id="savings">₪0</b></div>
+    <div class="row"><span>ריבית חיסכון יומית</span><b>0.06%</b></div>
+    <div class="controls" style="margin-top:10px">
+     <button class="secondary" onclick="deposit(10000)">הפקד ₪10,000</button>
+     <button class="secondary" onclick="withdraw(10000)">משוך ₪10,000</button>
+    </div>
    </div>
 
    <div class="panel" data-req="bank">
@@ -537,7 +543,7 @@ const freshGame=(h2Name,seriesName)=>({
  day:1, hour:8, paused:false, cash:65000, monthRevenue:0, monthExpenses:0, dayRevenue:0, dayExpenses:0,
  stock:Object.fromEntries(ALL_COMPONENTS.map(v=>[v.id,0])),
  capacity:900, finished:0, finishedByModel:{H2:0}, progress:0, partsBought:0, workers:0, roster:[], candidates:Array.from({length:CANDIDATE_POOL_SIZE},genCandidate), lines:1, condition:100,
- quality:92, production:false, produced:0, shipped:0, repairs:0, debt:0,
+ quality:92, production:false, produced:0, shipped:0, repairs:0, debt:0, savings:0,
  demand:2, marketPrice:Math.round(STD_MAT_COST*1.35), stage:1, tutOpen:false,
  rep:55, adLevel:0, ordersWon:0, logs:[], dispatcher:false, procurement:false, maintWorker:false, wage:DEFAULT_WAGE, strike:false,
  lineIssues:[], lineModels:['H2'], lineBuffers:[0], lineConditions:[100], lineChangeover:[0], componentMarketIndex:100, blockReason:null,
@@ -548,7 +554,7 @@ const freshGame=(h2Name,seriesName)=>({
  competitorBrands:assignCategoryBrands(),
  activeModelId:'H2', modelCounter:2,
  models:{
-  H2:{id:'H2',name:h2Name||'H2',createdDay:1,launchDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0,adLevel:0,seriesName:seriesName||'סדרה ראשונה'}
+  H2:{id:'H2',name:h2Name||'H2',createdDay:1,launchDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0,adLevel:0,seriesName:seriesName||'סדרה ראשונה',priceAdj:1}
  },
  founderCredit:18000, founderCreditStartDay:3,
  clearanceFund:0,
@@ -599,7 +605,13 @@ const selectedVariant=(key,bom=activeBom())=>componentById(bom[key]||categoryByK
 const modelSpecScore=m=>bomSpecScore(m?.bom||defaultBom());
 const modelPriceMul=m=>1+modelSpecScore(m)*0.018;
 // מחיר צפוי ליחידה: מחיר השוק כפול יחס עלות הרכיבים של הדגם ובונוס המפרט
-const modelPriceEstimate=m=>Math.round(game.marketPrice*(modelMatCost(m)/STD_MAT_COST)*modelPriceMul(m));
+const modelPriceEstimate=m=>Math.round(game.marketPrice*(modelMatCost(m)/STD_MAT_COST)*modelPriceMul(m)*(m?.priceAdj||1));
+function adjustModelPrice(id,delta){
+ const m=game.models[id]; if(!m)return;
+ m.priceAdj=Math.max(0.85,Math.min(1.15,+(m.priceAdj||1)+delta));
+ log(`💰 מחיר ${m.name} עודכן ל-${Math.round(m.priceAdj*100)}% מהמחיר הבסיסי (${money(modelPriceEstimate(m))} ליח׳). מחיר גבוה יותר מוריד סיכוי לזכות בהזמנות; נמוך יותר מגדיל אותו.`);
+ render();
+}
 const modelMatCost=m=>bomUnitCost(m?.bom||defaultBom());
 function materialCharge(gross){
  let credit=0;
@@ -665,7 +677,7 @@ function spawnModel(name,seriesName,adLevel){
  const id='M'+game.modelCounter++;
  const bom=Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,old?.bom?.[c.key]||c.variants[0].id]));
  changeFin(0,cost);
- game.models[id]={id,name,createdDay:game.day,bom,status:'announced',retireDay:null,clearanceUntil:null,sold:0,adLevel:adLevel||0,seriesName};
+ game.models[id]={id,name,createdDay:game.day,bom,status:'announced',retireDay:null,clearanceUntil:null,sold:0,adLevel:adLevel||0,seriesName,priceAdj:1};
  game.activeModelId=id; game.finished=0; game.finishedByModel[id]=0;
  return id;
 }
@@ -756,15 +768,16 @@ function renderModels(){
       ?`<button disabled>נערך כרגע</button> <button class="green" onclick="launchModel('${m.id}')">🚀 השק דגם</button>`
       :`<button class="secondary" onclick="selectForEditing('${m.id}')">ערוך מפרט</button> <button class="green" onclick="launchModel('${m.id}')">🚀 השק דגם</button>`;
    }else if(m.status==='active'){
-     btn=editing?'<button disabled>הדגם הפעיל</button>'
-      :`<button class="secondary" onclick="switchModel('${m.id}')">ייצר בדגם הזה</button> <button class="red" onclick="retireModel('${m.id}')">הוצא מהשוק</button>`;
+     btn=(editing?'<button disabled>הדגם הפעיל</button>'
+      :`<button class="secondary" onclick="switchModel('${m.id}')">ייצר בדגם הזה</button> <button class="red" onclick="retireModel('${m.id}')">הוצא מהשוק</button>`)
+      +` <button class="secondary" onclick="adjustModelPrice('${m.id}',-0.05)">⬇️ הורד מחיר</button> <button class="secondary" onclick="adjustModelPrice('${m.id}',0.05)">⬆️ העלה מחיר</button>`;
    }else{
      btn=`<button class="secondary" onclick="sellClearance('${m.id}')">מכור שאריות</button>`;
    }
    return `<div class="modelCard ${editing&&m.status==='active'?'active':''} ${m.status==='retired'?'retired':''}">
       <span class="badge ${m.status==='active'?'ok':m.status==='announced'||m.status==='clearance'?'warn':''} modelBadge">${status}</span>
       <h3>${m.name}${m.seriesName?` <span class="muted" style="font-size:10.5px;font-weight:600">· סדרת ${m.seriesName}</span>`:''}</h3>
-      <div class="modelSpec">נוצר ביום ${m.createdDay} · עלות רכיבים ${money(modelMatCost(m))} · מחיר צפוי ${money(modelPriceEstimate(m))} · מלאי ${units}</div>
+      <div class="modelSpec">נוצר ביום ${m.createdDay} · עלות רכיבים ${money(modelMatCost(m))} · מחיר צפוי ${money(modelPriceEstimate(m))}${m.priceAdj&&m.priceAdj!==1?` (${m.priceAdj>1?'+':''}${Math.round((m.priceAdj-1)*100)}%)`:''} · מלאי ${units}</div>
       <div class="modelSpec">מפרט: ${modelSpecScore(m)>=0?'+':''}${modelSpecScore(m)} נק׳ · ${m.status==='clearance'?'חלון עד יום '+m.clearanceUntil:''}</div>
       ${has('marketing')&&m.status==='active'&&inAdWindow(m)?`<div class="modelSpec">📣 שיווק ייעודי (עוד ${AD_WINDOW_DAYS-(game.day-m.launchDay)} ימים): <select onchange="setModelAd('${m.id}',this.value)" style="font-size:12px">${AD.map((a,i)=>`<option value="${i}"${i===(m.adLevel||0)?' selected':''}>${a.name} (${money(a.cost)}/יום)</option>`).join('')}</select></div>`:''}
       <div class="controls" style="margin-top:9px">${btn}</div>
@@ -1071,6 +1084,7 @@ function render(){
  document.getElementById('debt').textContent=money(game.debt);
  document.getElementById('dailyPay').textContent=money(game.debt>0?Math.max(200,game.debt*0.02):0);
  {const lev=game.debt/Math.max(1,game.cash+game.debt);document.getElementById('intRate').textContent=(0.15*(1+lev*1.5)).toFixed(2)+'%';}
+ document.getElementById('savings').textContent=money(game.savings);
  document.getElementById('machineStatus').textContent=game.production?(game.blockReason?'מושהה':workHour()?'פועל':'ידלוק ב-08:00'):'כבוי';
  document.getElementById('machineStatus').className='badge '+(game.production&&!game.blockReason?(workHour()?'ok':'warn'):'warn');
  document.getElementById('prodBtn').textContent=game.production?'עצור ייצור':'הפעל ייצור';
@@ -1124,7 +1138,7 @@ function load(){
    game.models={H2:{id:'H2',name:'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:game.shipped||0}};
   }
   Object.values(game.models).forEach(m=>{
-   m.bom=Object.assign(defaultBom(),m.bom||{}); m.status=m.status||'active'; if(!('sold' in m))m.sold=0;
+   m.bom=Object.assign(defaultBom(),m.bom||{}); m.status=m.status||'active'; if(!('sold' in m))m.sold=0; if(!('priceAdj' in m))m.priceAdj=1;
   });
   // שמירה ישנה: מונה טכנאים גלובלי בלי צוות אמיתי → ממלאים אנשי צוות גנריים לפי המספר והשכר הישנים.
   if(!Array.isArray(game.roster))game.roster=[];
@@ -1468,6 +1482,17 @@ function repay(sum){
  if(game.cash<sum){log('אין מספיק מזומן להחזר.');return}
  changeFin(0,sum);game.debt-=sum;log(`הוחזרו ${money(sum)} לבנק.`);render()
 }
+const SAVINGS_RATE=0.0006;   // ריבית יומית על פיקדון — נמוכה בהרבה מריבית ההלוואה, כדי לא להפוך למקור רווח עיקרי
+function deposit(sum){
+ sum=Math.min(sum,game.cash);
+ if(sum<=0){log('אין מספיק מזומן להפקדה.');return}
+ changeFin(0,sum);game.savings+=sum;log(`🏦 הופקדו ${money(sum)} בחיסכון. סך החיסכון: ${money(game.savings)}.`);render()
+}
+function withdraw(sum){
+ sum=Math.min(sum,game.savings);
+ if(sum<=0){log('אין חיסכון למשיכה.');return}
+ game.savings-=sum;changeFin(sum,0);log(`נמשכו ${money(sum)} מהחיסכון.`);render()
+}
 function buyMachine(){
  if(game.cash<45000){log('אין מספיק מזומן לקו הרכבה נוסף.');return}
  changeFin(0,45000);game.lines++;game.lineModels[game.lines-1]=game.activeModelId;
@@ -1651,6 +1676,10 @@ function closeDay(){
    game.debt+=game.debt*rate;
    let pay=Math.min(game.debt,Math.max(200,game.debt*0.02));
    game.debt-=pay;exp+=pay;
+ }
+ if(has('bank')&&game.savings>0){
+   const interest=Math.round(game.savings*SAVINGS_RATE);
+   if(interest){game.savings+=interest;log(`🏦 ריבית חיסכון: +${money(interest)}.`)}
  }
  if(exp)changeFin(0,exp);
 
