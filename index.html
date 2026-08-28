@@ -535,7 +535,7 @@ const CANDIDATE_POOL_SIZE=4;
 const RAMP_DAYS=6, RAMP_START=0.55;
 const rampFactor=w=>w.hiredDay==null?1:Math.min(1,RAMP_START+(game.day-w.hiredDay)/RAMP_DAYS*(1-RAMP_START));
 const fatigueFactor=w=>1-Math.max(0,(w.fatigue||0)-60)*0.006;
-const rosterSpeedSum=()=>(game.roster||[]).reduce((s,w)=>s+((game.absentIds||[]).includes(w.id)?0:w.speed*rampFactor(w)*fatigueFactor(w)),0);
+const rosterSpeedSum=()=>(game.roster||[]).reduce((s,w)=>s+((game.absentIds||[]).includes(w.id)?0:w.speed*fatigueFactor(w)),0);
 const rosterAvgSkill=()=>{const r=game.roster||[]; return r.length?r.reduce((s,w)=>s+w.skill*rampFactor(w)*fatigueFactor(w),0)/r.length:60};
 const rosterAvgExp=()=>{const r=game.roster||[]; return r.length?r.reduce((s,w)=>s+w.exp,0)/r.length:15};
 const rosterAvgFatigue=()=>{const r=game.roster||[]; return r.length?r.reduce((s,w)=>s+(w.fatigue||0),0)/r.length:0};
