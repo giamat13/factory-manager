@@ -532,7 +532,7 @@ function effectiveQuality(){
  return Math.max(50,Math.min(99,Math.round(game.quality+(rosterAvgSkill()-60)*0.25-Math.max(0,rosterAvgFatigue()-60)*0.1)));
 }
 
-const freshGame=(h2Name)=>({
+const freshGame=(h2Name,seriesName)=>({
  day:1, hour:8, paused:false, cash:65000, monthRevenue:0, monthExpenses:0, dayRevenue:0, dayExpenses:0,
  stock:Object.fromEntries(ALL_COMPONENTS.map(v=>[v.id,0])),
  capacity:900, finished:0, finishedByModel:{H2:0}, progress:0, partsBought:0, workers:0, roster:[], candidates:Array.from({length:CANDIDATE_POOL_SIZE},genCandidate), lines:1, condition:100,
@@ -547,7 +547,7 @@ const freshGame=(h2Name)=>({
  competitorBrands:assignCategoryBrands(),
  activeModelId:'H2', modelCounter:2,
  models:{
-  H2:{id:'H2',name:h2Name||'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0,adLevel:0}
+  H2:{id:'H2',name:h2Name||'H2',createdDay:1,bom:defaultBom(),status:'active',retireDay:null,clearanceUntil:null,sold:0,adLevel:0,seriesName:seriesName||'סדרה ראשונה'}
  },
  founderCredit:18000, founderCreditStartDay:3,
  clearanceFund:0,
@@ -655,7 +655,7 @@ function setLineModel(i,id){
  log(`🔁 פס ${i+1} עובר לייצר ${m.name}. כיוונון קו: ${LINE_CHANGEOVER_HOURS} שעות מושבתות, עלות ${money(cost)}.`);
  render();
 }
-// יצירת דגם משותפת: מפרט מתחיל כעותק של הדגם הנוכחי, סטטוס "הוכרז" (עריך), ותג סדרה אופציונלי.
+// יצירת דגם משותפת: מפרט מתחיל כעותק של הדגם הנוכחי, סטטוס "הוכרז" (עריך), ותג סדרה חובה.
 function spawnModel(name,seriesName,adLevel){
  const cost=7500;
  if(game.cash<cost){log('אין מספיק מזומן לפיתוח דגם חדש.');return null}
@@ -664,11 +664,11 @@ function spawnModel(name,seriesName,adLevel){
  const id='M'+game.modelCounter++;
  const bom=Object.fromEntries(COMPONENT_CATEGORIES.map(c=>[c.key,old?.bom?.[c.key]||c.variants[0].id]));
  changeFin(0,cost);
- game.models[id]={id,name,createdDay:game.day,bom,status:'announced',retireDay:null,clearanceUntil:null,sold:0,adLevel:adLevel||0,...(seriesName?{seriesName}:{})};
+ game.models[id]={id,name,createdDay:game.day,bom,status:'announced',retireDay:null,clearanceUntil:null,sold:0,adLevel:adLevel||0,seriesName};
  game.activeModelId=id; game.finished=0; game.finishedByModel[id]=0;
  return id;
 }
-// יצירת דגם אחת לכל: שם לדגם, ואם סדרות פתוחות — לאיזו סדרה הוא שייך (קיימת, חדשה, או בלי סדרה), ומה רמת השיווק הייעודית שלו.
+// יצירת דגם אחת לכל: שם לדגם, לאיזו סדרה הוא שייך (קיימת או חדשה — חובה), ומה רמת השיווק הייעודית שלו.
 function createNewModel(){
  if(!has('modelShop'))return;
  if(game.cash<7500){log('אין מספיק מזומן לפיתוח דגם חדש.');return}
@@ -676,15 +676,13 @@ function createNewModel(){
  if(nameRaw===null)return;   // ביטול = בלי דגם, בלי חיוב
  const name=nameRaw.trim().slice(0,24);
  if(!name){log('❌ יצירת הדגם בוטלה: לא הוזן שם.');return}
- let seriesName=null;
- if(has('modelSeries')){
-   const existing=[...new Set(Object.values(game.models).map(m=>m.seriesName).filter(Boolean))];
-   const hint=existing.length?`אפשרויות קיימות: ${existing.join(', ')}. `:'';
-   const seriesRaw=prompt(`${hint}לאיזו סדרה שייך הדגם? הקלד שם סדרה קיים כדי להצטרף אליה, שם חדש כדי לפתוח סדרה, או השאר ריק לדגם עצמאי.`,'');
-   if(seriesRaw===null)return;   // ביטול בשלב הסדרה מבטל את כל היצירה, לא רק מדלג עליה
-   const trimmed=seriesRaw.trim().slice(0,18);
-   if(trimmed)seriesName=existing.find(s=>s.toLowerCase()===trimmed.toLowerCase())||trimmed;
- }
+ const existing=[...new Set(Object.values(game.models).map(m=>m.seriesName).filter(Boolean))];
+ const hint=existing.length?`אפשרויות קיימות: ${existing.join(', ')}. `:'';
+ const seriesRaw=prompt(`${hint}לאיזו סדרה שייך הדגם? הקלד שם סדרה קיים כדי להצטרף אליה, או שם חדש כדי לפתוח סדרה. כל דגם חייב להשתייך לסדרה.`,existing[0]||'');
+ if(seriesRaw===null)return;   // ביטול בשלב הסדרה מבטל את כל היצירה, לא רק מדלג עליה
+ const trimmed=seriesRaw.trim().slice(0,18);
+ if(!trimmed){log('❌ יצירת הדגם בוטלה: כל דגם חייב להשתייך לסדרה.');return}
+ const seriesName=existing.find(s=>s.toLowerCase()===trimmed.toLowerCase())||trimmed;
  let adLevel=0;
  if(has('marketing')){
    const options=AD.map((a,i)=>`${i}=${a.name} (${money(a.cost)}/יום)`).join(' · ');
@@ -694,7 +692,7 @@ function createNewModel(){
  }
  const id=spawnModel(name,seriesName,adLevel);
  if(!id)return;
- log(seriesName?`🧬 ${name} הוכרז ושויך לסדרת ${seriesName}, שיווק: ${AD[adLevel].name}. אפשר לבחור רכיבים בסטודיו ולהשיק כשמוכן.`:`🆕 דגם ${name} הוכרז, שיווק: ${AD[adLevel].name}. אפשר לבחור רכיבים בסטודיו, ולחיצה על «השק דגם» תנעל את המפרט ותוציא אותו לשוק.`);
+ log(`🧬 ${name} הוכרז ושויך לסדרת ${seriesName}, שיווק: ${AD[adLevel].name}. אפשר לבחור רכיבים בסטודיו ולהשיק כשמוכן.`);
  render();
 }
 function setModelAd(id,level){
@@ -826,7 +824,7 @@ const AD=[{cost:0,name:'כבוי'},{cost:250,name:'מקומי'},{cost:700,name:'
 
 // ── שלבי ההדרכה ──────────────────────────────────────────────
 // כל פיצ'ר נפתח בשלב שלו; has() שולט גם ב-UI (data-req) וגם בסימולציה.
-const UNLOCK={sales:2,orders:2,market:2,reputation:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,marketing:9,events:10,modelShop:11,modelSeries:11};
+const UNLOCK={sales:2,orders:2,market:2,reputation:2,materials:3,workers:4,expenses:5,breakdowns:6,quality:7,bank:8,expansion:9,marketing:9,events:10,modelShop:11};
 const MODEL_SHOP_MILESTONE=80;   // כמה רחפנים צריך לשלוח כדי לפתוח את שלב 11
 const has=f=>game.stage>=UNLOCK[f];
 
@@ -876,7 +874,7 @@ const STAGES=[null,
   task:'שלח '+MODEL_SHOP_MILESTONE+' רחפנים ללקוחות', prog:()=>game.shipped+'/'+MODEL_SHOP_MILESTONE, done:()=>game.shipped>=MODEL_SHOP_MILESTONE},
 
  {t:'רחפן מותאם אישית וסדרות מוצרים', icon:'🎨', target:'[onclick="createNewModel()"]',
-  b:'סטודיו הדגמים נפתח.\n\n«צור דגם חדש» → מפרט חדש, ובו בוחרים לכל אחת משש הקטגוריות רמה: תקציבי / סטנדרט / פרו / אקסטרים. ככל שחולף זמן במשחק → מתחרים משיקים דורות חדשים ונפתחות עוד רמות.\n\nעלות הרכיבים של הדגם → קובעת את המחיר שלקוחות משלמים: רחפן אקסטרים למקצוענים נמכר ביוקר, רחפן תקציבי לחובבנים נמכר בזול אבל בכמויות.\n\nאפשר להחזיק כמה דגמים פעילים במקביל, ולהחליף איזה דגם רץ כרגע על הקו.\n\nדגם חדש נוצר במצב "הוכרז" → אפשר לערוך בו רכיבים כרגיל, ולוחצים «השק דגם» → המפרט ננעל לתמיד, בדיוק כמו שחברה אמיתית לא מחליפה מנוע במוצר שכבר בשוק.\n\n«צור דגם חדש» שואל גם לאיזו סדרה הוא שייך: סדרה קיימת, שם חדש שפותח סדרה, או בלי סדרה בכלל — כל דגם בסדרה נוצר בנפרד ובזמן שאתה בוחר, לא כולם ביחד.',
+  b:'סטודיו הדגמים נפתח.\n\n«צור דגם חדש» → מפרט חדש, ובו בוחרים לכל אחת משש הקטגוריות רמה: תקציבי / סטנדרט / פרו / אקסטרים. ככל שחולף זמן במשחק → מתחרים משיקים דורות חדשים ונפתחות עוד רמות.\n\nעלות הרכיבים של הדגם → קובעת את המחיר שלקוחות משלמים: רחפן אקסטרים למקצוענים נמכר ביוקר, רחפן תקציבי לחובבנים נמכר בזול אבל בכמויות.\n\nאפשר להחזיק כמה דגמים פעילים במקביל, ולהחליף איזה דגם רץ כרגע על הקו.\n\nדגם חדש נוצר במצב "הוכרז" → אפשר לערוך בו רכיבים כרגיל, ולוחצים «השק דגם» → המפרט ננעל לתמיד, בדיוק כמו שחברה אמיתית לא מחליפה מנוע במוצר שכבר בשוק.\n\n«צור דגם חדש» שואל גם לאיזו סדרה הוא שייך: סדרה קיימת או שם חדש שפותח סדרה — כל דגם חייב להשתייך לסדרה, וכל דגם בסדרה נוצר בנפרד ובזמן שאתה בוחר, לא כולם ביחד.',
   task:'צור דגם מותאם אישית ומכור ממנו',
   prog:()=>customModelSold()?'✅ הושלם':(Object.keys(game.models).length>1?'הדגם נוצר, עכשיו למכור':'עדיין לא נוצר דגם'),
   done:()=>customModelSold(),
@@ -1182,8 +1180,10 @@ function renderSlots(){
 function startFresh(){
  const raw=prompt('לפני שמתחילים: איך יקרא הדגם הראשון שלך? (רחפן הצילום שאיתו פותחים את המפעל)','H2');
  const h2Name=(raw||'').trim().slice(0,24)||'H2';
- game=seedStarterStock(freshGame(h2Name)); orders=[]; nextId=1;
- log(`ברוך הבא למפעל הרחפנים. הדגם הראשון שלך: ${h2Name}.`);
+ const seriesRaw=prompt('ולאיזו סדרה הוא שייך? (כל דגם חייב להשתייך לסדרה כלשהי)','סדרה ראשונה');
+ const seriesName=(seriesRaw||'').trim().slice(0,18)||'סדרה ראשונה';
+ game=seedStarterStock(freshGame(h2Name,seriesName)); orders=[]; nextId=1;
+ log(`ברוך הבא למפעל הרחפנים. הדגם הראשון שלך: ${h2Name}, בסדרת ${seriesName}.`);
  render(); showTut();
 }
 function switchSlot(n){
