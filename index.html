@@ -1121,7 +1121,7 @@ function render(){
  if(has('bank'))document.getElementById('sharePrice').textContent=money(game.sharePrice);
  document.getElementById('debt').textContent=money(game.debt);
  document.getElementById('dailyPay').textContent=money(game.debt>0?Math.max(200,game.debt*0.02):0);
- {const lev=game.debt/Math.max(1,game.cash+game.debt);document.getElementById('intRate').textContent=(0.15*(1+lev*1.5)).toFixed(2)+'%';}
+ {const lev=Math.max(0,Math.min(1,game.debt/Math.max(1,game.cash+game.debt)));document.getElementById('intRate').textContent=(0.15*(1+lev*1.5)).toFixed(2)+'%';}
  document.getElementById('savings').textContent=money(game.savings);
  document.getElementById('companyName').textContent='🛸 '+(game.companyName||'Factory Manager');
  document.getElementById('machineStatus').textContent=game.production?(game.blockReason?'מושהה':workHour()?'פועל':'ידלוק ב-08:00'):'כבוי';
@@ -1733,8 +1733,10 @@ function closeDay(){
  // שכירות/ביטוח גדלים עם גודל המחסן, מעבר לחשמל ותחזוקה
  if(has('expenses'))exp+=(game.production?260*game.lines:90)+400+120*game.lines+Math.round(game.capacity*0.4);
  if(has('bank')&&game.debt>0){
-   // ריבית תלוית מינוף: ככל שהחוב גדול יחסית למזומן, הריבית עולה — מדמה סיכון אשראי
-   const leverage=game.debt/Math.max(1,game.cash+game.debt);
+   // ריבית תלוית מינוף: ככל שהחוב גדול יחסית למזומן, הריבית עולה — מדמה סיכון אשראי.
+   // המינוף מוגבל ל-0–1: בלי הגבלה, מזומן שצונח למינוס גדול (יכול לקרות כי הוצאות תמיד יורדות מהמזומן)
+   // מקפיץ את ה"מינוף" לאלפים ואת הריבית היומית למאות אחוזים — מעגל קטלני שאין ממנו חזרה.
+   const leverage=Math.max(0,Math.min(1,game.debt/Math.max(1,game.cash+game.debt)));
    const rate=0.0015*(1+leverage*1.5);
    game.debt+=game.debt*rate;
    let pay=Math.min(game.debt,Math.max(200,game.debt*0.02));
