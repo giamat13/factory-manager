@@ -1277,7 +1277,7 @@ function changeFin(rev,cost){
  game.monthRevenue+=rev;game.monthExpenses+=cost;
  game.dayRevenue+=rev;game.dayExpenses+=cost;
 }
-const enoughWorkers=()=>!has('workers')||rosterSpeedSum()>=game.lines*PER_LINE;
+const enoughWorkers=()=>!has('workers')||rosterSpeedSum()>=game.lines*PER_LINE-1e-9;
 // stored() is defined in model system.
 
 // מתחת ל-70% מצב, יש סיכון תקלה גובר; מתחת ל-20% הקו נועל את עצמו
