@@ -1630,7 +1630,14 @@ function autoProcure(){
  // מדיניות "נקודת הזמנה / רמת יעד": מזמינים כשיורדים מתחת לרזרבת ביטחון (לא כשמגיעים לאפס),
  // ותמיד עד רמת יעד גבוהה יותר — כך שיש ספייר אמיתי, ופחות הזמנות קטנות שכל אחת סוחבת ₪400 משלוח.
  const SAFETY_STOCK_HOURS=10, TARGET_STOCK_DAYS=2;
- Object.entries(need).forEach(([id,perHourUse])=>{
+ // עם כמה פסים, כל הרכיבים חסרים בו-זמנית והם מתחרים על אותו מקום מחסן —
+ // מזמינים קודם את מה שהכי קרוב לאפס (יחסית לנקודת ההזמנה שלו), לא לפי סדר קטגוריות קבוע,
+ // אחרת קטגוריה שנטפלת ראשונה תמיד תתפוס את כל המקום הפנוי ותרעיב קטגוריות אחרות.
+ Object.entries(need).sort((a,b)=>{
+   const haveA=(game.stock[a[0]]||0)+pendingQtyOf(a[0]), haveB=(game.stock[b[0]]||0)+pendingQtyOf(b[0]);
+   const urgencyA=haveA/Math.max(1,a[1]*SAFETY_STOCK_HOURS), urgencyB=haveB/Math.max(1,b[1]*SAFETY_STOCK_HOURS);
+   return urgencyA-urgencyB;
+ }).forEach(([id,perHourUse])=>{
    const v=componentById(id);
    const reorderPoint=perHourUse*SAFETY_STOCK_HOURS;
    // מלאי בדרך (הזמנה שכבר יצאה, טרם הגיעה) נספר גם הוא, כדי לא להזמין שוב על אותו חוסר
